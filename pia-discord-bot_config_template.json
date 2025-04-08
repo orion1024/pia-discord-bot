@@ -1,0 +1,52 @@
+{
+    "discord": {
+        "token": "YOUR_DISCORD_BOT_TOKEN",
+        "monitored_channels": [
+            "CHANNEL_ID_1",
+            "CHANNEL_ID_2"
+        ],
+        "command_prefix": "!pia"
+    },
+    "content": {
+        "supported_domains": [
+            "youtube.com",
+            "youtu.be"
+        ],
+        "youtube": {
+            "api_key": "YOUR_YOUTUBE_API_KEY",
+            "proxy_enabled": false,
+            "proxy_urls": [
+                "https://proxy1.example.com:8000",
+                "https://proxy2.example.com:8000",
+                "https://proxy3.example.com:8000"
+            ],
+            "transcript_max_retries": 3,
+            "transcript_retry_delay": 2
+        }
+    },
+    "summarization": {
+        "provider": "claude",
+        "api_key": "YOUR_CLAUDE_API_KEY",
+        "model": "claude-2",
+        "max_tokens": 1000
+    },
+    "target": {
+        "coda": {
+            "api_key": "YOUR_CODA_API_KEY",
+            "doc_id": "YOUR_CODA_DOC_ID",
+            "table_id": "YOUR_CODA_TABLE_ID",
+            "tag_table_id": "YOUR_CODA_TAG_TABLE_ID"
+        },
+        "discord": {
+            "enabled": true
+        }
+    },
+    "logging": {
+        "level": "INFO",
+        "file": "pia-discord-bot.log"
+    },
+    "cache": {
+      "file": "data/summary_cache.json",
+      "sync_interval_minutes": 30
+    }
+}
