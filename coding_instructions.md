@@ -16,15 +16,6 @@ Project should be modular : use existing libraries and tools when available, and
 - new LLMs for the summarization
 - new target for the summarized content
 
-The following modules will be developed :
-- "commons" module that defines shared utilities for other modules
-- Discord primitives to handle source data fetching
-- Summarization primitives that will use the source data to generate the summary
-- Target primitives that will use the summary to generate the target content
-
-
-The project will start with YouTube for source, Claude for the summarization, and Coda for the target.
-
 # Coding instructions
 
 ## Outlines
@@ -38,6 +29,26 @@ The development will proceed in iterative steps, utilizing the AI coding assista
 5. **Code Generation:** Cody generates the code based on the approved suggestions.
 6. **Testing and Validation:** I test the generated code to ensure it meets the requirements. If issues arise, we iterate with Cody to resolve them.
 7. **Documentation:** Document the implemented code and any decisions made during the step.
+
+## Modularity specifics
+
+The following modules will be developed :
+- "commons" module that defines shared utilities for other modules
+- Discord primitives to handle link detection
+- Content primitives to fetch raw source data
+- Summarization primitives that will use the source data to generate the summary
+- Target primitives that will use the summary to generate the target content
+
+The intended modularity can be achieved by using standard methods for high-level data handling, which take as one of their parameter a function to handle low-level data handling.
+For instance, the module to fetch the raw data could use a high-level function which :
+1. fetch the raw data using the passed function. The function will be different for each website.
+2. parse the raw data in a common format (defined in the commons module), independent of the website, which will allow the next modules to handle it seemlessly.
+Apply this principle to all modules.
+
+The project will start with YouTube for source, Claude for the summarization, and Coda for the target.
+
+All strings that are used to post content on Discord or Coda will be stored in a single file named "strings.py".
+Methods specific to a platform should be stored in a specific file named after the platform.
 
 ## Steps
 
@@ -67,106 +78,105 @@ The development process will follow these steps:
 - **Expected Outcome:** A well-organized project directory with initial files and version control set up.
 
 ### **Step 3: Initialize Configuration and Modules**
-
-- **Objective:** Set up the main script and global module to handle configuration loading.
+- **Objective:** Set up project configuration and prepare modular code frameworks.
 - **Actions:**
-  - In `ExtractServices.ps1`, write code to load `config.json`.
-  - In `Modules/ExtractServices_globals.psm1`, define global variables and functions as needed.
-  - Create a function `Load-Config` in `ExtractServices_globals.psm1` to handle configuration loading.
-- **Expected Outcome:** `ExtractServices.ps1` and `ExtractServices_globals.psm1` can successfully load and access configuration settings.
+  - Create or update the `pia-discord-bot_config.json` file with necessary API keys, tokens, and default settings.
+  - Initialize the `Modules/` directory by creating subdirectories (with `__init__.py` files) for each module (e.g., Discord, Summarization, Target, Commons).
+  - Implement a configuration loader function that reads and validates the configuration file.
+- **Expected Outcome:** The bot’s configuration settings are loaded correctly, and the modules are primed for further development.
 
 ### **Step 4: Define Skeleton Functions**
-
-- **Objective:** Outline the functions required to achieve project objectives using skeleton code.
+- **Objective:** Outline the core functions for each module to create a blueprint for future development.
 - **Actions:**
-  - In `ExtractServices.ps1` and relevant modules, define placeholder functions such as:
-    - `Get-WordDocument`
-    - `Parse-Sections`
-    - `Extract-ServiceData`
-    - `Save-ToTsv`
-- **Expected Outcome:** A clear structure of functions with no implementation details yet.
+  - Create placeholder (stub) functions within each module that detail expected inputs, outputs, and overall purpose.
+  - Document each function with clear docstrings that describe parameters, expected return values, and potential exceptions.
+- **Expected Outcome:** A clear blueprint with defined function names, arguments, and documentation, providing a roadmap for subsequent coding.
 
-### **Step 5: Add Input and Output Parameters**
-
-- **Objective:** Enable specification of input and output file paths via command-line arguments.
+### **Step 5: Implement Discord Bot Connection and Message Monitoring**
+- **Objective:** Establish connection to the Discord API and begin monitoring messages on designated channels.
 - **Actions:**
-  - Use `Param` blocks in `ExtractServices.ps1` to add parameters:
-    - `-InputPath` for the input Word file.
-    - `-OutputPath` for the output TSV file.
-- **Expected Outcome:** `ExtractServices.ps1` accepts and processes input and output file paths as arguments.
+  - Assist me in obtaining the prerequisites for the bot (Discord API token, etc.)
+  - Set up the bot’s authentication and connection logic.
+  - Implement event listeners to monitor messages and log activities.
+- **Expected Outcome:** The Discord bot connects successfully to the server and monitors/logs incoming messages.
 
-### **Step 6: Implement Word File Loading and Parsing**
-
-- **Objective:** Load the Word document and parse its chapters and subchapters to extract service names.
+### **Step 6: Create Link Detection and Thread Creation Logic**
+- **Objective:** Detect messages containing supported website links and generate corresponding threads.
 - **Actions:**
-  - Implement `Get-WordDocument` using COM objects to interact with Word.
-  - Implement `Parse-Sections` to navigate through chapters and subchapters. Chapters and subchapters can be identified by their styles, which are all named "Titre X" where X is a number.
-    Example Structure:
-        **Titre 1**: Service Category
-        **Titre 2**: Service SubCategory
-        **Titre 3**: Service Name
-        **Subchapter content** : A table. Each row contains a property of the service.
-    Sections that don't contain a table should be ignored.
-  - Extract the service name, category and subcategory for each service and display them using `Out-GridView`.
-- **Expected Outcome:** Ability to load and parse the Word document, displaying extracted service names in a readable format.
+  - Develop a parser to scan messages for URLs (specifically targeting sites like YouTube, Twitter, etc.).
+  - Implement a function to automatically create a new Discord thread for a given link if needed. If an existing thread is found, the bot should not create a new one, and use the existing one instead.
+  - Set up an easy way for all modules to write a message to the Discord thread.
+- **Expected Outcome:** When a message with a supported link is detected, the bot creates a thread (unless one already exists).
 
-### **Step 7: Save Extracted Data to TSV File**
-
-- **Objective:** Persist the extracted data into a tab-delimited file.
+### **Step 7: Implement Content Fetching Module**
+- **Objective:** Retrieve content from the source websites corresponding to the detected links.
 - **Actions:**
-  - Implement `Save-ToTsv` using `Export-Csv` with the `-Delimiter` parameter set to tab (`\t`).
-  - Ensure that each service is represented as a single row with appropriate columns.
-- **Expected Outcome:** A correctly formatted TSV file containing all extracted services.
+  - Write functions that interface with website APIs or use reliable scraping methods (starting with YouTube).
+  - Ensure proper error handling and fallback procedures if the content cannot be fetched.
+- **Expected Outcome:** Content is fetched and prepared for processing (such as summarization), with robust error handling.
 
-### **Step 8: Enhance Data Extraction with Detailed Information**
-
-- **Objective:** Extract additional details from tables within each subchapter of the Word document.
+### **Step 8: Integrate Summarization Module with LLM**
+- **Objective:** Generate summaries using a large language model (LLM), such as Claude, based on the fetched content.
 - **Actions:**
-  - Update `Extract-ServiceData` to locate and parse tables within subchapters using COM objects.
-  - Extract specific details as per the provided table structure.
-  - Integrate the detailed data into the existing data grid.
-- **Expected Outcome:** Comprehensive data extraction including detailed attributes from tables, reflected accurately in the TSV output.
+  - Develop an interface for sending content to the summarization API.
+  - Handle responses from the LLM, ensuring proper formatting and clarity.
+  - Maintain flexibility for future integration with other LLMs if needed.
+- **Expected Outcome:** The LLM produces reliable summaries of the fetched content, which are then ready for subsequent processing.
 
-### **Step 9: Implement Error Handling and Validation**
-
-- **Objective:** Ensure the robustness of the application by handling potential errors and validating data.
+### **Step 9: Develop Target Module for Content Delivery**
+- **Objective:** Deliver the summarized content to the chosen endpoints, such as a Coda table and the original Discord channel.
 - **Actions:**
-  - Add `try-catch` blocks around file operations and parsing functions.
-  - Validate the presence and correctness of required chapters and tables in the Word document.
-  - Implement logging using `Write-Log` functions or the `Transcript` feature to track errors and processing steps.
-- **Expected Outcome:** The application gracefully handles errors and logs relevant information for troubleshooting.
+  - Create functions that interact with the Coda API to update a table with the summary.
+  - Ensure that the original Discord channel receives a well-formatted message containing the summary.
+  - Implement error handling and retries for network or API issues.
+- **Expected Outcome:** Summaries are successfully posted to the designated Coda table and the original Discord channel.
 
-### **Step 10: Write Unit Tests**
-
-- **Objective:** Ensure code reliability through automated testing.
+### **Step 10 : Add duplicate detection**
+- **Objective:** Use the code table to fetch existing threads and summaries to detect duplicates.
 - **Actions:**
-  - In the `Tests/` directory, write unit tests for each major function using the **Pester** framework.
-  - Test scenarios include successful data extraction, handling missing chapters, and invalid input files.
-- **Expected Outcome:** A suite of tests that validate the functionality and robustness of the codebase.
+  - Set up a function to fetch the code table and extract existing threads and summaries.
+  - Use it in the Discord monitoring function to detect duplicates.
+  - If duplicates are detected, the bot should create a new thread with a link to the existing thread, with a message explaining the duplicate.
+- **Expected Outcome:** Summaries are successfully posted to the designated Coda table and the original Discord channel.
 
-### **Step 11: Documentation and Usage Instructions**
 
-- **Objective:** Provide clear documentation for future maintenance and user guidance.
+### **Step 11: Integrate and Test End-to-End Workflows**
+- **Objective:** Ensure seamless integration between all individual modules.
 - **Actions:**
-  - Update `README.md` with project description, setup instructions, usage examples, and contribution guidelines.
-  - Comment the script and module files thoroughly to explain complex logic and decisions.
-- **Expected Outcome:** Comprehensive documentation that facilitates easy understanding and usage of the project.
+  - Build integration tests or conduct manual end-to-end tests to simulate the complete process—from link detection to updating the target with a summary.
+  - Identify and resolve any issues or bottlenecks in the data flow.
+- **Expected Outcome:** A smooth, error-free end-to-end process where messages are detected, threads created, content fetched, summarized, and delivered reliably.
 
+### **Step 12: Write Unit Tests**
+- **Objective:** Develop comprehensive tests for individual functions and modules to ensure code reliability.
+- **Actions:**
+  - Use testing frameworks like `unittest` or `pytest` to write tests.
+  - Cover key functionalities in Discord connection, link detection, content fetching, summarization, and target delivery modules.
+  - Set up continuous integration (CI) to run tests automatically.
+- **Expected Outcome:** A robust suite of unit tests that ensures any future changes do not break existing functionality.
 
-## Coding Standards
+### **Step 13: Documentation and Usage Instructions**
+- **Objective:** Create detailed documentation for both developers and end users.
+- **Actions:**
+  - Generate comprehensive README files for project setup, installation, and contribution guidelines.
+  - Document each API function and module thoroughly with inline docstrings and external documentation using tools like Sphinx.
+  - Provide usage examples, troubleshooting tips, and contact details for support.
+- **Expected Outcome:** Clear and accessible documentation that facilitates onboarding and ongoing development.
 
-- Follow PEP8 Standards: Adhere to the widely accepted PEP8 style guide for naming conventions, indentation, line length, spacing, and more to improve code readability and maintain consistency.
-- Write Clean, Modular Code: Structure your code in functions, classes, and modules so that each component has a single responsibility and can be reused and tested independently.
-- Include Comprehensive Comments: Comment your code effectively to explain the purpose of functions, complex logic, and overall code flow without cluttering the source code.
-- Emphasize Readability: Use descriptive variable and function names, and maintain clear logical structures to enhance maintainability and ease of understanding for others.
-- Implement Robust Error Handling: Use try-except blocks where appropriate to catch exceptions, and provide meaningful error messages to facilitate debugging and maintenance.
-- Utilize Python’s Standard Library: Prefer built-in libraries over external dependencies when feasible, and clearly document when and why external libraries are used.
-- Follow Best Practices for Testing: Integrate unit tests using frameworks like unittest or pytest to validate the functionality of your code and support continuous integration.
-- Document API and Usage: Write clear docstrings for functions, classes, and modules that describe their input parameters, return types, and potential exceptions.
-- Ensure Compatibility Across Environments: Write code that is compatible with multiple Python versions if needed, and use virtual environments or dependency managers (e.g., pipenv, Poetry) to handle packages.
-- Optimize Code Performance: Consider algorithm complexity and resource management; use profiling tools to identify bottlenecks, and refactor code where necessary for improved performance.
-- Leverage Modern Python Features: Utilize recent Python enhancements (such as type hints, f-strings, and context managers) where appropriate to write cleaner, more expressive code.
-- Handle Edge Cases: Think through and code for possible edge cases and input anomalies to ensure that your software behaves predictably under all scenarios.
-- Maintain Security Best Practices: Sanitize inputs when interacting with external data sources, and be cautious with the handling of sensitive information.
-- Use Version Control: Integrate with version control systems (e.g., Git) to track changes, manage branches, and facilitate collaborative development.
-- Provide Clear Documentation: Generate and maintain user-facing and developer-facing documentation, and consider using tools such as Sphinx for creating robust documentation from docstrings.
+# Coding Standards
+
+- **Follow PEP8 Standards:** Adhere to naming conventions, indentation, spacing, and other guidelines to improve code readability.
+- **Write Clean, Modular Code:** Organize code into functions, classes, and modules to ensure each component has a single responsibility.
+- **Include Comprehensive Comments:** Provide clear comments explaining the purpose of functions, complex logic, and overall code flow.
+- **Emphasize Readability:** Use descriptive names and maintain clear logical structures for ease of future maintenance.
+- **Implement Robust Error Handling:** Use try-except blocks with meaningful error messages to facilitate troubleshooting.
+- **Utilize Python’s Standard Library:** Prefer built-in libraries where possible, and document any external dependencies.
+- **Follow Best Practices for Testing:** Incorporate unit tests using frameworks like `unittest` or `pytest` and support continuous integration.
+- **Document API and Usage:** Write detailed docstrings for functions, classes, and modules outlining parameters, return types, and exceptions.
+- **Ensure Compatibility Across Environments:** Write code that supports multiple Python versions and use virtual environments or dependency managers (e.g., pipenv, Poetry) as needed.
+- **Optimize Code Performance:** Consider algorithm complexity and use profiling tools to identify and resolve bottlenecks.
+- **Leverage Modern Python Features:** Utilize type hints, f-strings, and context managers for cleaner, more expressive code.
+- **Handle Edge Cases:** Anticipate and code for potential edge cases to ensure predictable behavior.
+- **Maintain Security Best Practices:** Sanitize external inputs and handle sensitive data with caution.
+- **Use Version Control:** Track changes using systems like Git and facilitate collaborative development.
+- **Provide Clear Documentation:** Maintain both user-facing and developer-facing documentation, using tools like Sphinx if possible.
