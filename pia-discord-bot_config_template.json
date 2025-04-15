@@ -1,0 +1,36 @@
+{
+    "discord": {
+        "token": "YOUR_DISCORD_BOT_TOKEN",
+        "monitored_channels": [
+            "CHANNEL_ID_1",
+            "CHANNEL_ID_2"
+        ],
+        "command_prefix": "!pia"
+    },
+    "content": {
+        "supported_domains": [
+            "youtube.com",
+            "youtu.be"
+        ]
+    },
+    "summarization": {
+        "provider": "claude",
+        "api_key": "YOUR_CLAUDE_API_KEY",
+        "model": "claude-2",
+        "max_tokens": 1000
+    },
+    "target": {
+        "coda": {
+            "api_key": "YOUR_CODA_API_KEY",
+            "doc_id": "YOUR_CODA_DOC_ID",
+            "table_id": "YOUR_CODA_TABLE_ID"
+        },
+        "discord": {
+            "enabled": true
+        }
+    },
+    "logging": {
+        "level": "INFO",
+        "file": "pia-discord-bot.log"
+    }
+}
