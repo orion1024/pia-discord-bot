@@ -180,3 +180,14 @@ The development process will follow these steps:
 - **Maintain Security Best Practices:** Sanitize external inputs and handle sensitive data with caution.
 - **Use Version Control:** Track changes using systems like Git and facilitate collaborative development.
 - **Provide Clear Documentation:** Maintain both user-facing and developer-facing documentation, using tools like Sphinx if possible.
+
+TODO :
+- add keywords to the summaries, to facilitate later semantic search.
+  - name of the people involved in the content should be included by default
+- add commands, for instance :
+  - in a thread
+    - trigger a new evaluation of a link (cooldown ?)
+    - post in the thread related similar content (do it by default ?)
+  - outside a thread
+    - list categories of content
+    - post list of content regarding a certain category)
