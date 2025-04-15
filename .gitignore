@@ -33,3 +33,4 @@ ENV/
 
 # Project specific
 pia-discord-bot_config.json
+pia-discord-bot.log
