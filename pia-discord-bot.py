@@ -3,6 +3,7 @@ import os
 import sys
 import logging
 import asyncio
+import signal
 from typing import Dict, Any
 
 from Modules.Commons import config, ConfigurationError
@@ -10,6 +11,9 @@ from Modules.Discord import create_bot, start_bot, PiaBot
 from Modules.Content import create_content_processor
 from Modules.Summarization import create_summarizer
 from Modules.Target import create_target_handler
+
+# Global variable to hold the bot instance for shutdown handling
+bot_instance = None
 
 async def setup_bot() -> PiaBot:
     """
@@ -46,7 +50,51 @@ async def setup_bot() -> PiaBot:
     
     bot.set_target_handler(handle_targets)
     
+    # Store the bot instance globally for shutdown handling
+    global bot_instance
+    bot_instance = bot
+    
     return bot
+
+# Global variables
+bot_instance = None
+
+async def shutdown(signal=None):
+    """
+    Gracefully shut down the bot.
+    
+    Args:
+        signal: The signal that triggered the shutdown (optional)
+    """
+
+    if signal:
+        logging.info(f"Received exit signal {signal.name}...")
+    
+    logging.info("Shutting down bot...")
+    
+    # Close the Discord connection if bot is running
+    if bot_instance and bot_instance.is_ready():
+        logging.info("Closing Discord connection...")
+        await bot_instance.close()
+    
+    logging.info("Shutdown complete")
+
+def handle_exit_signal(signum, frame):
+    """
+    Handle exit signals by stopping the event loop.
+    
+    Args:
+        signum: Signal number
+        frame: Current stack frame
+    """
+    # Get the current event loop
+    loop = asyncio.get_event_loop()
+    
+    # Schedule the shutdown coroutine
+    loop.create_task(shutdown())
+    
+    # Stop the event loop after a short delay to allow shutdown to complete
+    loop.call_later(2, loop.stop)
 
 async def main_async():
     """Asynchronous main function."""
@@ -59,6 +107,22 @@ async def main_async():
         bot = await setup_bot()
         
         logging.info("PIA Discord Bot initialized successfully")
+        # Set up signal handlers for graceful shutdown
+        loop = asyncio.get_running_loop()
+        try:
+            # This works on Unix-like systems (Linux, macOS)
+            for sig in (signal.SIGINT, signal.SIGTERM):
+                loop.add_signal_handler(
+                    sig,
+                    lambda s=sig: asyncio.create_task(shutdown(s))
+                )
+            logging.info("Registered asyncio signal handlers")
+        except NotImplementedError:
+            # This fallback is needed for Windows
+            logging.info("Asyncio signal handlers not supported on this platform, using signal.signal instead")
+            # We'll rely on the signal.signal handlers set in the main function
+            
+        # Start the bot (this will block until the bot is stopped)
         await start_bot(bot)
         
     except ConfigurationError as e:
@@ -67,11 +131,25 @@ async def main_async():
     except Exception as e:
         logging.error(f"Initialization error: {e}")
         sys.exit(1)
+    finally:
+        # Ensure shutdown is called even if an error occurs
+        await shutdown()
 
 def main():
     """Main entry point for the application."""
+    # Register signal handlers for non-asyncio context
+    signal.signal(signal.SIGINT, handle_exit_signal)
+    signal.signal(signal.SIGTERM, handle_exit_signal)
+    
     # Run the async main function
-    asyncio.run(main_async())
+    try:
+        asyncio.run(main_async())
+    except KeyboardInterrupt:
+        # This will be caught if Ctrl+C is pressed before asyncio.run starts
+         logging.info("Interrupted by user")
+    except Exception as e:
+        logging.error(f"Unhandled exception: {e}")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
