@@ -1,7 +1,10 @@
 import logging
 from datetime import datetime
 import re
-from typing import Optional
+from typing import Optional, List, Dict, Any
+import asyncio
+from pytubefix import YouTube
+from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled, NoTranscriptFound
 
 from .models import ContentItem
 from Modules import strings
@@ -10,13 +13,13 @@ logger = logging.getLogger(__name__)
 
 async def process_youtube(url: str) -> Optional[ContentItem]:
     """
-    Process a YouTube URL to extract video information.
+    Process a YouTube URL to extract video information and transcript.
     
     Args:
         url: The YouTube URL
         
     Returns:
-        A ContentItem containing the video information
+        A ContentItem containing the video information and transcript
         
     Raises:
         RuntimeError: If processing fails
@@ -24,9 +27,6 @@ async def process_youtube(url: str) -> Optional[ContentItem]:
     logger.info(strings.CONTENT_YOUTUBE_FETCHING)
     
     try:
-        # This is a placeholder - actual implementation will come later
-        # In a real implementation, we would use the YouTube API or a library like pytube
-        
         # Extract video ID from URL
         video_id_match = re.search(r'(?:v=|\/)([0-9A-Za-z_-]{11}).*', url)
         if not video_id_match:
@@ -34,34 +34,88 @@ async def process_youtube(url: str) -> Optional[ContentItem]:
             
         video_id = video_id_match.group(1)
         
-        # Placeholder data - this would be fetched from the YouTube API
-        title = f"Sample YouTube Video {video_id}"
-        author = "Sample Channel"
-        description = "This is a sample description for a YouTube video."
-        upload_date = datetime.now()
+        # Run pytube in a thread pool to avoid blocking the event loop
+        def extract_info():
+            yt = YouTube(url)
+            return {
+                "title": yt.title,
+                "author": yt.author,
+                "description": yt.description,
+                "publish_date": yt.publish_date,
+                "length": yt.length,
+                "views": yt.views,
+                "rating": yt.rating,
+                "keywords": yt.keywords,
+                "thumbnail_url": yt.thumbnail_url,
+                "video_id": yt.video_id,
+                "channel_id": yt.channel_id,
+                "channel_url": yt.channel_url,
+            }
+        
+        # Run the extraction in a thread pool
+        loop = asyncio.get_event_loop()
+        info = await loop.run_in_executor(None, extract_info)
+        
+        # Get transcript using youtube_transcript_api
+        transcript_text = await get_transcript(video_id)
         
         # Create a ContentItem
         content_item = ContentItem(
             type="youtube",
             url=url,
-            title=title,
-            author=author,
-            date=upload_date,
-            content=description,
+            title=info["title"],
+            author=info["author"],
+            date=info["publish_date"] or datetime.now(),
+            content=transcript_text or info["description"],  # Use transcript if available, otherwise description
             metadata={
-                "video_id": video_id,
-                "description": description,
-                "duration": 300,  # 5 minutes in seconds
-                "views": 10000,
-                "likes": 500,
-                "comments": 50
+                "video_id": info["video_id"],
+                "description": info["description"],
+                "transcript": transcript_text,  # Store full transcript in metadata
+                "duration": info["length"],
+                "views": info["views"],
+                "rating": info["rating"],
+                "keywords": info["keywords"],
+                "thumbnail_url": info["thumbnail_url"],
+                "channel_id": info["channel_id"],
+                "channel_url": info["channel_url"]
             }
         )
         
-        logger.info(strings.CONTENT_YOUTUBE_FETCHED.format(title=title))
+        logger.debug(f"YouTube content properties - Title: {content_item.title}, Author: {content_item.author}, "
+                           f"Date: {content_item.date}, URL: {content_item.url}, Video ID: {content_item.metadata['video_id']}, "
+                           f"Duration: {content_item.metadata['duration']}s, Views: {content_item.metadata['views']}")
+        
+        logger.info(strings.CONTENT_YOUTUBE_FETCHED.format(title=content_item.title))
         
         return content_item
         
     except Exception as e:
         logger.exception(f"Error processing YouTube URL {url}: {e}")
         raise RuntimeError(f"Failed to process YouTube URL: {str(e)}")
+
+async def get_transcript(video_id: str) -> Optional[str]:
+    """
+    Get the transcript for a YouTube video.
+    
+    Args:
+        video_id: The YouTube video ID
+        
+    Returns:
+        The transcript text, or None if no transcript is available
+    """
+    try:
+        # Run in a thread pool to avoid blocking
+        def fetch_transcript():
+            transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
+            return " ".join([entry["text"] for entry in transcript_list])
+            
+        loop = asyncio.get_event_loop()
+        transcript = await loop.run_in_executor(None, fetch_transcript)
+        return transcript
+        
+    except (TranscriptsDisabled, NoTranscriptFound):
+        logger.info(f"No transcript available for video {video_id}")
+        return None
+    except Exception as e:
+        logger.warning(f"Error fetching transcript for video {video_id}: {e}")
+        return None
