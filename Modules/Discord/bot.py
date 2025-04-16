@@ -5,7 +5,7 @@ from typing import List, Optional, Callable, Any, Awaitable, Dict
 import discord
 from discord.ext import commands
 
-from Modules.Commons import config
+from Modules.Commons import config, SummaryItem
 from Modules import strings
 
 logger = logging.getLogger(__name__)
@@ -284,6 +284,8 @@ class PiaBot(commands.Bot):
             await thread.send(strings.SUMMARIZATION_PROCESSING)
             summary = await self._summarizer(content_item)
             
+            formatted_summary = format_summary_for_discord(summary)
+
             if not summary:
                 await thread.send("Could not generate summary")
                 return
@@ -296,7 +298,7 @@ class PiaBot(commands.Bot):
                 await thread.send("Error: Target handler not configured")
                 return
                 
-            await self._target_handler(url, summary, thread)
+            await self._target_handler(url, formatted_summary, thread)
             
         except Exception as e:
             logger.exception(f"Error processing URL {url}: {e}")
@@ -328,3 +330,36 @@ async def start_bot(bot: PiaBot) -> None:
     except Exception as e:
         logging.error(f"Failed to start Discord bot: {e}")
         raise
+
+def format_summary_for_discord(summary_item: SummaryItem) -> str:
+    """
+    Format a SummaryItem as a Discord-friendly table.
+    
+    Args:
+        summary_item: The SummaryItem to format
+        
+    Returns:
+        A string containing the formatted summary for Discord
+    """
+    # Create a Discord-formatted table using Markdown
+    table = "# Summary for: " + summary_item.title + "\n\n"
+    
+    # Add the summary section
+    table += "## Summary\n"
+    table += summary_item.summary + "\n\n"
+    
+    # Add metadata table
+    table += "## Metadata\n"
+    table += "| Property | Value |\n"
+    table += "|----------|-------|\n"
+    table += f"| Type | {summary_item.type} |\n"
+    table += f"| Author | {summary_item.author} |\n"
+    table += f"| URL | {summary_item.url} |\n"
+    
+    # Add tags section
+    if summary_item.tags:
+        table += "\n## Tags\n"
+        tags_formatted = ", ".join([f"`{tag}`" for tag in summary_item.tags])
+        table += tags_formatted + "\n"
+    
+    return table

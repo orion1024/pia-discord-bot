@@ -10,7 +10,7 @@ from .config import (
     BotConfig
 )
 
-from .commons import sanitize_for_logging
+from .commons import sanitize_for_logging, SummaryItem
 
 __all__ = [
     'config', 
@@ -22,5 +22,6 @@ __all__ = [
     'CodaConfig', 
     'LoggingConfig', 
     'BotConfig',
-    'sanitize_for_logging'
+    'sanitize_for_logging',
+    'SummaryItem'
 ]
