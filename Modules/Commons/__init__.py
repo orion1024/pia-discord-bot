@@ -10,6 +10,8 @@ from .config import (
     BotConfig
 )
 
+from .commons import sanitize_for_logging
+
 __all__ = [
     'config', 
     'ConfigurationError', 
@@ -19,5 +21,6 @@ __all__ = [
     'TargetConfig', 
     'CodaConfig', 
     'LoggingConfig', 
-    'BotConfig'
+    'BotConfig',
+    'sanitize_for_logging'
 ]

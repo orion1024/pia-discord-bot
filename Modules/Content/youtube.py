@@ -8,6 +8,7 @@ from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled, No
 
 from .models import ContentItem
 from Modules import strings
+from Modules.Commons.commons import sanitize_for_logging
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +59,12 @@ async def process_youtube(url: str) -> Optional[ContentItem]:
         
         # Get transcript using youtube_transcript_api
         transcript_text = await get_transcript(video_id)
+
+        full_content = f"===== Video description BEGIN =====\n\n{info['description']}\n\n"
+        full_content += f"===== Video description END =====\n\n"
+        if transcript_text:
+            full_content += f"===== Video transcript BEGIN =====\n\n{transcript_text}\n\n"
+            full_content += f"===== Video transcript END =====\n\n"
         
         # Create a ContentItem
         content_item = ContentItem(
@@ -66,7 +73,7 @@ async def process_youtube(url: str) -> Optional[ContentItem]:
             title=info["title"],
             author=info["author"],
             date=info["publish_date"] or datetime.now(),
-            content=transcript_text or info["description"],  # Use transcript if available, otherwise description
+            content=full_content,
             metadata={
                 "video_id": info["video_id"],
                 "description": info["description"],
@@ -81,11 +88,11 @@ async def process_youtube(url: str) -> Optional[ContentItem]:
             }
         )
         
-        logger.debug(f"YouTube content properties - Title: {content_item.title}, Author: {content_item.author}, "
-                           f"Date: {content_item.date}, URL: {content_item.url}, Video ID: {content_item.metadata['video_id']}, "
-                           f"Duration: {content_item.metadata['duration']}s, Views: {content_item.metadata['views']}")
-        
-        logger.info(strings.CONTENT_YOUTUBE_FETCHED.format(title=content_item.title))
+        # logger.info(f"YouTube content properties - Title: {sanitize_for_logging(content_item.title)}, Author: {content_item.author}, "
+        #                    f"Date: {content_item.date}, URL: {content_item.url}, Video ID: {content_item.metadata['video_id']}, "
+        #                    f"Duration: {content_item.metadata['duration']}s, Views: {content_item.metadata['views']}, "
+        #                    f"Content: {content_item.content[:100]}...")        
+        logger.info(strings.CONTENT_YOUTUBE_FETCHED.format(title=sanitize_for_logging(content_item.title)))
         
         return content_item
         
@@ -95,7 +102,7 @@ async def process_youtube(url: str) -> Optional[ContentItem]:
 
 async def get_transcript(video_id: str) -> Optional[str]:
     """
-    Get the transcript for a YouTube video.
+    Get the transcript for a YouTube video using the latest API pattern.
     
     Args:
         video_id: The YouTube video ID
@@ -106,15 +113,25 @@ async def get_transcript(video_id: str) -> Optional[str]:
     try:
         # Run in a thread pool to avoid blocking
         def fetch_transcript():
-            transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
-            return " ".join([entry["text"] for entry in transcript_list])
+            # Using the current API pattern from the latest documentation
+            transcript = YouTubeTranscriptApi.list_transcripts(video_id)
+            
+            # Try to get the transcript in the default language (usually the original language)
+            default_transcript = transcript.find_transcript(['fr','en'])
+            transcript_data = default_transcript.fetch().to_raw_data()
+
+            # Join all transcript segments into a single string
+            return "\n".join([entry["text"] for entry in transcript_data])
             
         loop = asyncio.get_event_loop()
         transcript = await loop.run_in_executor(None, fetch_transcript)
         return transcript
         
-    except (TranscriptsDisabled, NoTranscriptFound):
+    except NoTranscriptFound:
         logger.info(f"No transcript available for video {video_id}")
+        return None
+    except TranscriptsDisabled:
+        logger.info(f"Transcripts are disabled for video {video_id}")
         return None
     except Exception as e:
         logger.warning(f"Error fetching transcript for video {video_id}: {e}")
