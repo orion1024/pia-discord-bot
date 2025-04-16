@@ -1,6 +1,7 @@
 import logging
 import re
-from typing import List, Optional, Callable, Any, Awaitable
+
+from typing import List, Optional, Callable, Any, Awaitable, Dict
 import discord
 from discord.ext import commands
 
@@ -24,7 +25,11 @@ class PiaBot(commands.Bot):
         discord_config = config.get_discord()
         super().__init__(
             command_prefix=discord_config.command_prefix,
-            intents=intents
+
+            intents=intents,
+            help_command=commands.DefaultHelpCommand(
+                no_category="PIA Commands"
+            )
         )
         
         self.monitored_channel_ids = [int(channel_id) for channel_id in discord_config.monitored_channels]
@@ -38,7 +43,31 @@ class PiaBot(commands.Bot):
         This is called automatically when the bot is started.
         """
         logger.info("Setting up PIA Discord bot...")
-        # Register commands will be added here
+
+        
+        # Register commands
+        @self.command(name="ping", help="Check if the bot is responsive")
+        async def ping(ctx):
+            """Simple command to check if the bot is responsive."""
+            await ctx.send("Pong! I'm here and listening.")
+            
+        @self.command(name="channels", help="List monitored channels")
+        async def channels(ctx):
+            """List the channels being monitored by the bot."""
+            channel_list = []
+            for channel_id in self.monitored_channel_ids:
+                channel = self.get_channel(channel_id)
+                if channel:
+                    channel_list.append(f"- {channel.name} (ID: {channel.id})")
+                else:
+                    channel_list.append(f"- Unknown channel (ID: {channel_id})")
+            
+            if channel_list:
+                await ctx.send("I'm monitoring these channels:\n" + "\n".join(channel_list))
+            else:
+                await ctx.send("I'm not monitoring any channels.")
+        
+        logger.info("Commands registered successfully")
         
     def set_content_processor(self, processor: Callable[[str], Awaitable[Any]]) -> None:
         """
@@ -72,6 +101,22 @@ class PiaBot(commands.Bot):
         logger.info(f"Logged in as {self.user.name} ({self.user.id})")
         logger.info(f"Monitoring channels: {self.monitored_channel_ids}")
         
+        # Verify that monitored channels exist and are accessible
+        for channel_id in self.monitored_channel_ids:
+            channel = self.get_channel(channel_id)
+            if channel:
+                logger.info(f"Monitoring channel: {channel.name} (ID: {channel_id})")
+            else:
+                logger.warning(f"Could not find channel with ID: {channel_id}")
+        
+        # Set custom status
+        await self.change_presence(
+            activity=discord.Activity(
+                type=discord.ActivityType.watching,
+                name="for links to summarize"
+            )
+        )
+        
     async def on_message(self, message: discord.Message):
         """
         Called when a message is received.
@@ -98,7 +143,25 @@ class PiaBot(commands.Bot):
             
         # Process each URL
         for url in urls:
-            await self._process_url(url, message)
+            if await self._is_supported_url(url):
+                logger.info(f"Processing URL: {url} from message {message.id}")
+                await self._process_url(url, message)
+    
+    async def on_command_error(self, ctx, error):
+        """
+        Called when a command raises an error.
+        
+        Args:
+            ctx: The command context
+            error: The error that was raised
+        """
+        if isinstance(error, commands.CommandNotFound):
+            await ctx.send(f"Command not found. Use `{self.command_prefix}help` to see available commands.")
+        elif isinstance(error, commands.MissingRequiredArgument):
+            await ctx.send(f"Missing required argument: {error.param.name}")
+        else:
+            logger.exception(f"Command error: {error}")
+            await ctx.send(f"An error occurred: {str(error)}")
     
     async def _extract_urls(self, content: str) -> List[str]:
         """
@@ -110,8 +173,8 @@ class PiaBot(commands.Bot):
         Returns:
             A list of extracted URLs
         """
-        # Simple URL extraction regex - can be improved
-        url_pattern = r'https?://(?:[-\w.]|(?:%[\da-fA-F]{2}))+'
+        # URL extraction regex
+        url_pattern = r'https?:\/\/\S+'
         return re.findall(url_pattern, content)
     
     async def _is_supported_url(self, url: str) -> bool:
@@ -153,7 +216,15 @@ class PiaBot(commands.Bot):
             The created thread
         """
         # Create a thread name from the URL
-        thread_name = f"Discussion: {url[:50]}"
+        # Extract domain for better thread naming
+        domain_match = re.search(r'https?://(?:www\.)?([^/]+)', url)
+        domain = domain_match.group(1) if domain_match else "link"
+        
+        # Limit thread name length
+        max_name_length = 100  # Discord's limit
+        thread_name = f"Discussion: {domain} - {url[:max_name_length-15]}"
+        if len(thread_name) > max_name_length:
+            thread_name = thread_name[:max_name_length-3] + "..."
         
         # Create the thread
         thread = await message.create_thread(name=thread_name)
@@ -192,24 +263,37 @@ class PiaBot(commands.Bot):
             # Fetch content
             if not self._content_processor:
                 logger.error("Content processor not set")
+                await thread.send("Error: Content processor not configured")
                 return
                 
             await thread.send(strings.CONTENT_YOUTUBE_FETCHING)
-            content = await self._content_processor(url)
-            await thread.send(strings.DISCORD_CONTENT_FETCHED.format(url=url))
+            content_item = await self._content_processor(url)
+            
+            if not content_item:
+                await thread.send(f"Could not fetch content from {url}")
+                return
+                
+            await thread.send(strings.DISCORD_CONTENT_FETCHED.format(type=content_item.type))
             
             # Summarize content
             if not self._summarizer:
                 logger.error("Summarizer not set")
+                await thread.send("Error: Summarizer not configured")
                 return
                 
             await thread.send(strings.SUMMARIZATION_PROCESSING)
-            summary = await self._summarizer(content)
+            summary = await self._summarizer(content_item)
+            
+            if not summary:
+                await thread.send("Could not generate summary")
+                return
+                
             await thread.send(strings.SUMMARIZATION_COMPLETE)
             
             # Send to targets
             if not self._target_handler:
                 logger.error("Target handler not set")
+                await thread.send("Error: Target handler not configured")
                 return
                 
             await self._target_handler(url, summary, thread)
@@ -238,6 +322,9 @@ async def start_bot(bot: PiaBot) -> None:
     try:
         logging.info("Starting Discord bot...")
         await bot.start(discord_config.token)
+    except discord.LoginFailure:
+        logging.error("Invalid Discord token. Please check your configuration.")
+        raise
     except Exception as e:
         logging.error(f"Failed to start Discord bot: {e}")
         raise

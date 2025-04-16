@@ -2,11 +2,12 @@ import logging
 from typing import Dict, Any, Callable, Awaitable, Optional
 
 from Modules.Commons import config
+from Modules.Content import ContentItem
 
 logger = logging.getLogger(__name__)
 
 # Type definition for summarizer functions
-SummarizerFunc = Callable[[Dict[str, Any]], Awaitable[str]]
+SummarizerFunc = Callable[[ContentItem], Awaitable[str]]
 
 class Summarizer:
     """
@@ -29,12 +30,12 @@ class Summarizer:
         self._summarizers[provider] = summarizer
         logger.info(f"Registered summarizer for provider: {provider}")
         
-    async def summarize(self, content: Dict[str, Any]) -> str:
+    async def summarize(self, content_item: ContentItem) -> str:
         """
         Summarize content using the configured LLM provider.
         
         Args:
-            content: The content to summarize
+            content: The ContentItem to summarize
             
         Returns:
             A string containing the summary
@@ -43,7 +44,7 @@ class Summarizer:
             ValueError: If the content is invalid
             RuntimeError: If summarization fails
         """
-        if not content:
+        if not content_item:
             raise ValueError("Cannot summarize empty content")
             
         # Get the configured provider
@@ -58,19 +59,19 @@ class Summarizer:
         try:
             # Generate the summary
             logger.info(f"Generating summary using provider: {provider}")
-            summary = await summarizer(content)
+            summary = await summarizer(content_item)
             return summary
         except Exception as e:
             logger.exception(f"Error generating summary: {e}")
             raise RuntimeError(f"Failed to generate summary: {str(e)}")
 
 # Claude summarizer (placeholder)
-async def summarize_with_claude(content: Dict[str, Any]) -> str:
+async def summarize_with_claude(content_item: Dict[str, Any]) -> str:
     """
     Summarize content using Claude API.
     
     Args:
-        content: The content to summarize
+        content_item: The ContentItem to summarize
         
     Returns:
         A string containing the summary
@@ -85,18 +86,17 @@ async def summarize_with_claude(content: Dict[str, Any]) -> str:
     summarization_config = config.get_summarization()
     
     # Extract content details based on type
-    content_type = content.get("type")
+    content_type = content_item.type
     
     if content_type == "youtube":
-        title = content.get("title", "Unknown Title")
-        description = content.get("description", "No description available")
-        channel = content.get("channel", "Unknown Channel")
+        title = content_item.title
+        author = content_item.author
         
         # Placeholder for actual Claude API call
         summary = f"""
 Summary of YouTube video: {title}
 
-Channel: {channel}
+Channel: {author}
 
 Key points:
 - This is a placeholder summary

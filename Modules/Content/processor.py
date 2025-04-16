@@ -2,18 +2,19 @@ import logging
 from typing import Dict, Any, Callable, Awaitable, Optional
 import re
 from urllib.parse import urlparse
-
 from Modules.Commons import config
+from .models import ContentItem
+from .youtube import process_youtube
 
 logger = logging.getLogger(__name__)
 
 # Type definition for content processor functions
-ContentProcessorFunc = Callable[[str], Awaitable[Dict[str, Any]]]
+ContentProcessorFunc = Callable[[str], Awaitable[Optional[ContentItem]]]
 
 class ContentProcessor:
     """
     Content processor for fetching and processing content from URLs.
-    Supports multiple content sources through registered processor functions.
+    Supports multiple domains through registered processor functions.
     """
     
     def __init__(self):
@@ -25,13 +26,13 @@ class ContentProcessor:
         Register a processor function for a specific domain.
         
         Args:
-            domain: The domain this processor handles (e.g., 'youtube.com')
+            domain: The domain name (e.g., 'youtube.com')
             processor: The async function that processes URLs from this domain
         """
         self._processors[domain] = processor
         logger.info(f"Registered content processor for domain: {domain}")
         
-    async def process(self, url: str) -> Optional[Dict[str, Any]]:
+    async def process(self, url: str) -> Optional[ContentItem]:
         """
         Process a URL by finding and using the appropriate domain processor.
         
@@ -58,62 +59,70 @@ class ContentProcessor:
                 break
                 
         if not processor:
-            logger.warning(f"No content processor found for URL: {url}")
-            return None
+            raise RuntimeError(f"No processor registered for domain: {domain}")
             
         try:
-            # Process the content
-            logger.info(f"Processing content from URL: {url}")
+            # Process the URL
+            logger.info(f"Processing URL: {url} with domain: {domain}")
             content = await processor(url)
+            
+            if not content:
+                logger.warning(f"No content returned for URL: {url}")
+                return None
+                
+            # Ensure URL is set in the content
+            content.url = url
+                
             return content
+            
         except Exception as e:
-            logger.exception(f"Error processing content from URL {url}: {e}")
-            raise RuntimeError(f"Failed to process content: {str(e)}")
+            logger.exception(f"Error processing URL {url}: {e}")
+            raise RuntimeError(f"Failed to process URL: {str(e)}")
 
-# YouTube content processor (placeholder)
-async def process_youtube_content(url: str) -> Dict[str, Any]:
-    """
-    Process content from a YouTube URL.
+# # YouTube content processor (placeholder)
+# async def process_youtube_content(url: str) -> Dict[str, Any]:
+#     """
+#     Process content from a YouTube URL.
     
-    Args:
-        url: The YouTube URL to process
+#     Args:
+#         url: The YouTube URL to process
         
-    Returns:
-        A dictionary containing the processed YouTube content
+#     Returns:
+#         A dictionary containing the processed YouTube content
         
-    Raises:
-        RuntimeError: If processing fails
-    """
-    # This is a placeholder - actual implementation will come later
-    logger.info(f"Processing YouTube content from URL: {url}")
+#     Raises:
+#         RuntimeError: If processing fails
+#     """
+#     # This is a placeholder - actual implementation will come later
+#     logger.info(f"Processing YouTube content from URL: {url}")
     
-    # Extract video ID from URL (simplified)
-    video_id = None
-    patterns = [
-        r'(?:youtube\.com/watch\?v=|youtu\.be/)([a-zA-Z0-9_-]+)',
-        r'youtube\.com/shorts/([a-zA-Z0-9_-]+)'
-    ]
+#     # Extract video ID from URL (simplified)
+#     video_id = None
+#     patterns = [
+#         r'(?:youtube\.com/watch\?v=|youtu\.be/)([a-zA-Z0-9_-]+)',
+#         r'youtube\.com/shorts/([a-zA-Z0-9_-]+)'
+#     ]
     
-    for pattern in patterns:
-        match = re.search(pattern, url)
-        if match:
-            video_id = match.group(1)
-            break
+#     for pattern in patterns:
+#         match = re.search(pattern, url)
+#         if match:
+#             video_id = match.group(1)
+#             break
     
-    if not video_id:
-        raise ValueError(f"Could not extract video ID from URL: {url}")
+#     if not video_id:
+#         raise ValueError(f"Could not extract video ID from URL: {url}")
     
-    # Placeholder for actual YouTube API call
-    return {
-        "type": "youtube",
-        "video_id": video_id,
-        "title": "Sample YouTube Video",
-        "description": "This is a placeholder description",
-        "channel": "Sample Channel",
-        "duration": "10:00",
-        "publish_date": "2023-01-01",
-        "url": url
-    }
+#     # Placeholder for actual YouTube API call
+#     return {
+#         "type": "youtube",
+#         "video_id": video_id,
+#         "title": "Sample YouTube Video",
+#         "description": "This is a placeholder description",
+#         "channel": "Sample Channel",
+#         "duration": "10:00",
+#         "publish_date": "2023-01-01",
+#         "url": url
+#     }
 
 def create_content_processor() -> ContentProcessor:
     """
@@ -125,7 +134,7 @@ def create_content_processor() -> ContentProcessor:
     processor = ContentProcessor()
     
     # Register processors for supported domains
-    processor.register_processor("youtube.com", process_youtube_content)
-    processor.register_processor("youtu.be", process_youtube_content)
+    processor.register_processor("youtube.com", process_youtube)
+    processor.register_processor("youtu.be", process_youtube)
     
     return processor

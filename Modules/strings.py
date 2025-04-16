@@ -1,6 +1,6 @@
 # Discord messages
-DISCORD_THREAD_CREATED = "Fil de discussion créé pour {url}"
-DISCORD_CONTENT_FETCHED = "Contenu récupéré depuis {url}"
+DISCORD_THREAD_CREATED = "Création thread automatique"
+DISCORD_CONTENT_FETCHED = "Contenu récupéré depuis {type}"
 DISCORD_SUMMARY_TITLE = "📝 Résumé"
 DISCORD_ERROR_FETCHING = "Erreur lors de la récupération du contenu depuis {url}: {error}"
 DISCORD_ERROR_SUMMARIZING = "Erreur lors de la génération du résumé: {error}"
