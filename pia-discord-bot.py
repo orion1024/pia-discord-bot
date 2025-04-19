@@ -6,9 +6,9 @@ import asyncio
 import signal
 from typing import Dict, Any
 
-from Modules.Commons import config, ConfigurationError
+from Modules.Commons import config, ConfigurationError, ContentItem
 from Modules.Discord import create_bot, start_bot, PiaBot
-from Modules.Content import create_content_processor, ContentItem
+from Modules.Content import create_content_processor
 from Modules.Summarization import create_summarizer
 from Modules.Target import create_target_handler
 

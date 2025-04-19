@@ -2,8 +2,8 @@ import logging
 from typing import Dict, Any, Callable, Awaitable, Optional, List
 import json
 
-from Modules.Commons import config, sanitize_for_logging, SummaryItem
-from Modules.Content import ContentItem
+from Modules.Commons import config, sanitize_for_logging, SummaryItem, ContentItem
+
 from .claude import summarize_with_claude
 from .openai import summarize_with_chatgpt
    

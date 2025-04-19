@@ -2,8 +2,7 @@ import logging
 from typing import Dict, Any, Callable, Awaitable, Optional
 import re
 from urllib.parse import urlparse
-from Modules.Commons import config
-from .models import ContentItem
+from Modules.Commons import config, ContentItem
 from . import youtube
 
 logger = logging.getLogger(__name__)

@@ -6,9 +6,8 @@ import asyncio
 from pytubefix import YouTube
 from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled, NoTranscriptFound
 
-from .models import ContentItem
 from Modules import strings
-from Modules.Commons.commons import sanitize_for_logging
+from Modules.Commons import sanitize_for_logging, ContentItem
 
 logger = logging.getLogger(__name__)
 

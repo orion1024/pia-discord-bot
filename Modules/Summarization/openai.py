@@ -3,10 +3,8 @@ import openai
 import logging
 import json
 import re
-from typing import Dict, List
-from Modules.Content import ContentItem
-from Modules.Commons import SummaryItem, sanitize_for_logging
-from Modules.Commons import config
+from typing import Dict, List 
+from Modules.Commons import config, ContentItem, SummaryItem, sanitize_for_logging
 
 logger = logging.getLogger(__name__)
         

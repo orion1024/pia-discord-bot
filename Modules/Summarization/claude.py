@@ -3,8 +3,7 @@ import anthropic
 import logging
 import json
 from typing import Dict, List
-from Modules.Content import ContentItem
-from Modules.Commons import SummaryItem, sanitize_for_logging
+from Modules.Commons import ContentItem, SummaryItem, sanitize_for_logging
 from Modules.Commons import config
 
 logger = logging.getLogger(__name__)
