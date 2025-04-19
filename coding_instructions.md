@@ -123,7 +123,14 @@ The development process will follow these steps:
   - Maintain flexibility for future integration with other LLMs if needed.
 - **Expected Outcome:** The LLM produces reliable summaries of the fetched content, which are then ready for subsequent processing.
 
-### **Step 9: Develop Target Module for Content Delivery**
+### **Step 9.1: Add a local cache to store summary items **
+- **Objective:** Maintain a local JSON file containing the summary item collection
+- **Actions:**
+  - Use the local file to detect duplicates
+  - After a summary item has been generated, add it to the local file.  
+- **Expected Outcome:** Up-to-date list of summaries are stored in local file
+
+### **Step 9.2: Develop Full Target Module for Content Delivery**
 - **Objective:** Deliver the summarized content to the chosen endpoints, such as a Coda table and the original Discord channel.
 - **Actions:**
   - Create functions that interact with the Coda API to update a table with the summary.

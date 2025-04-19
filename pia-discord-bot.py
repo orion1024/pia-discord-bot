@@ -4,13 +4,14 @@ import sys
 import logging
 import asyncio
 import signal
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
-from Modules.Commons import config, ConfigurationError, ContentItem
+from Modules.Commons import config, ConfigurationError, ContentItem, SummaryItem
 from Modules.Discord import create_bot, start_bot, PiaBot
 from Modules.Content import create_content_processor
 from Modules.Summarization import create_summarizer
 from Modules.Target import create_target_handler
+from Modules.Cache import create_cache
 
 # Global variable to hold the bot instance for shutdown handling
 bot_instance = None
@@ -27,6 +28,8 @@ async def setup_bot() -> PiaBot:
     content_processor = create_content_processor()
     summarizer = create_summarizer()
     target_handler = create_target_handler()
+    cache = create_cache()  # Create the cache
+    
     # Connect the content processor to the bot
     async def process_content(url: str) -> ContentItem:
         """Process content from a URL."""
@@ -35,11 +38,30 @@ async def setup_bot() -> PiaBot:
     bot.set_content_processor(process_content)
     
     # Connect the summarizer to the bot
-    async def summarize_content(content: ContentItem) -> str:
+    async def summarize_content(content_item: ContentItem, thread_url: str) -> SummaryItem:
         """Summarize content."""
-        return await summarizer.summarize(content)
+        summary_item = await summarizer.summarize(content_item)
+        summary_item.thread_url = thread_url
+        # Add to cache after summarization
+        await cache.add_summary(summary_item)
+        return summary_item
     
     bot.set_summarizer(summarize_content)
+    
+    # Connect the cache to the bot for duplicate detection
+    async def check_duplicate(url: str) -> Optional[SummaryItem]:
+        """Check if URL has already been processed."""
+        return cache.find_by_url(url)
+    
+    bot.set_duplicate_checker(check_duplicate)
+    
+    # Connect the cache to the bot for thread URL updates
+    # async def update_thread_url(url: str, thread_url: str) -> None:
+    #     """Update thread URL in cache."""
+    #     await cache.update_thread_url(url, thread_url)
+    
+    # bot.set_thread_url_updater(update_thread_url)
+    
     # Connect the target handler to the bot
     async def handle_targets(url: str, summary: str, thread) -> None:
         """Send summary to targets."""

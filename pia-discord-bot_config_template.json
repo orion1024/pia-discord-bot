@@ -32,5 +32,8 @@
     "logging": {
         "level": "INFO",
         "file": "pia-discord-bot.log"
+    },
+    "cache": {
+      "file": "data/summary_cache.json"
     }
 }

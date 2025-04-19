@@ -96,6 +96,87 @@ class PiaBot(commands.Bot):
         """
         self._target_handler = handler
         
+    def set_duplicate_checker(self, checker: Callable[[str], Awaitable[Optional[SummaryItem]]]) -> None:
+        """
+        Set the duplicate checker function.
+        
+        Args:
+            checker: A function that checks if a URL has already been processed
+        """
+        self._duplicate_checker = checker
+        
+    def set_thread_url_updater(self, updater: Callable[[str, str], Awaitable[None]]) -> None:
+        """
+        Set the thread URL updater function.
+        
+        Args:
+            updater: A function that updates the thread URL for a URL
+        """
+        self._thread_url_updater = updater
+
+    async def _check_duplicate(self, url: str) -> Optional[discord.Thread]:
+        """
+        Check if a URL has already been processed.
+        
+        Args:
+            url: The URL to check
+            
+        Returns:
+            The existing thread if the URL is a duplicate, None otherwise
+        """
+        # Use the duplicate checker if available
+        if hasattr(self, '_duplicate_checker'):
+            logger.info("Checking for duplicates...")
+            existing_summary = await self._duplicate_checker(url)
+            if existing_summary and existing_summary.thread_url:
+                # Get the thread ID from the thread URL
+                # Thread URLs are in the format: https://discord.com/channels/{guild_id}/{channel_id}/{thread_id}
+                try:
+                    thread_id = int(existing_summary.thread_url.split('/')[-1])
+                    thread = self.get_channel(thread_id)
+                    if thread:
+                        return thread
+                except (ValueError, IndexError):
+                    logger.warning(f"Invalid thread URL in cache: {existing_summary.thread_url}")
+        
+        # No duplicate found or thread not accessible
+        return None
+
+    async def _create_thread(self, url: str, message: discord.Message) -> discord.Thread:
+        """
+        Create a new thread for a URL.
+        
+        Args:
+            url: The URL
+            message: The original message
+            
+        Returns:
+            The created thread
+        """
+        # Create a thread name from the URL
+        # Extract domain for better thread naming
+        domain_match = re.search(r'https?://(?:www\.)?([^/]+)', url)
+        domain = domain_match.group(1) if domain_match else "link"
+        
+        # Limit thread name length
+        max_name_length = 100  # Discord's limit
+        thread_name = f"Discussion: {domain} - {url[:max_name_length-15]}"
+        if len(thread_name) > max_name_length:
+            thread_name = thread_name[:max_name_length-3] + "..."
+        
+        # Create the thread
+        thread = await message.create_thread(name=thread_name)
+        
+        # Send initial message
+        await thread.send(strings.DISCORD_THREAD_CREATED.format(url=url))
+        
+        # Update thread URL in cache if updater is available
+        # if hasattr(self, '_thread_url_updater'):
+        #     thread_url = f"https://discord.com/channels/{message.guild.id}/{thread.id}"
+        #     await self._thread_url_updater(url, thread_url)
+        
+        return thread
+        
     async def on_ready(self):
         """Called when the bot is ready and connected to Discord."""
         logger.info(f"Logged in as {self.user.name} ({self.user.id})")
@@ -190,50 +271,6 @@ class PiaBot(commands.Bot):
         supported_domains = config.get_content().supported_domains
         return any(domain in url for domain in supported_domains)
     
-    async def _check_duplicate(self, url: str) -> Optional[discord.Thread]:
-        """
-        Check if a URL has already been processed.
-        
-        Args:
-            url: The URL to check
-            
-        Returns:
-            The existing thread if the URL is a duplicate, None otherwise
-        """
-        # This will be implemented later with Coda integration
-        # For now, return None (no duplicates)
-        return None
-    
-    async def _create_thread(self, url: str, message: discord.Message) -> discord.Thread:
-        """
-        Create a new thread for a URL.
-        
-        Args:
-            url: The URL
-            message: The original message
-            
-        Returns:
-            The created thread
-        """
-        # Create a thread name from the URL
-        # Extract domain for better thread naming
-        domain_match = re.search(r'https?://(?:www\.)?([^/]+)', url)
-        domain = domain_match.group(1) if domain_match else "link"
-        
-        # Limit thread name length
-        max_name_length = 100  # Discord's limit
-        thread_name = f"Discussion: {domain} - {url[:max_name_length-15]}"
-        if len(thread_name) > max_name_length:
-            thread_name = thread_name[:max_name_length-3] + "..."
-        
-        # Create the thread
-        thread = await message.create_thread(name=thread_name)
-        
-        # Send initial message
-        await thread.send(strings.DISCORD_THREAD_CREATED.format(url=url))
-        
-        return thread
-    
     async def _process_url(self, url: str, message: discord.Message) -> None:
         """
         Process a URL from a message.
@@ -282,7 +319,7 @@ class PiaBot(commands.Bot):
                 return
                 
             await thread.send(strings.SUMMARIZATION_PROCESSING)
-            summary = await self._summarizer(content_item)
+            summary = await self._summarizer(content_item, thread.jump_url)
             
             formatted_summary = format_summary_for_discord(summary)
 

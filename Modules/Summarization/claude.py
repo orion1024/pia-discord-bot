@@ -102,9 +102,9 @@ Please provide:
             author=content_item.author,
             url=content_item.url,
             summary=summary,
+            content=content_item.content,  # Include the original content
             tags=tags
-        )
-        
+        )        
     except Exception as e:
         logger.exception(f"Error in Claude summarization: {e}")
         raise RuntimeError(f"Claude summarization failed: {str(e)}")

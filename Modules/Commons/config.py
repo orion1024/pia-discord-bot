@@ -31,11 +31,15 @@ class LoggingConfig(BaseModel):
     level: str = "INFO"
     file: Optional[str] = "pia-discord-bot.log"
 
+class CacheConfig(BaseModel):
+    file: str = "summary_cache.json"
+
 class BotConfig(BaseModel):
     discord: DiscordConfig
     content: ContentConfig
     summarization: SummarizationConfig
     target: TargetConfig
+    cache: CacheConfig
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
 
     @field_validator('logging', mode='before')
@@ -130,6 +134,11 @@ class Config:
         """Ensure configuration is loaded."""
         if self._config is None:
             raise ConfigurationError("Configuration not loaded. Call load() first.")
+        
+    def get_cache_file(self) -> str:
+        """Get the cache file path from config."""
+        self._ensure_loaded()
+        return self._config.cache.file
 
 # Create a singleton instance
 config = Config()
