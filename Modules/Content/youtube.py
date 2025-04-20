@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime
 import re
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Tuple
 import asyncio
 from pytubefix import YouTube
 from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled, NoTranscriptFound
@@ -10,6 +10,35 @@ from Modules import strings
 from Modules.Commons import sanitize_for_logging, ContentItem
 
 logger = logging.getLogger(__name__)
+
+_PLATFORM_NAME = "YouTube"
+
+
+def extract_video_id(url: str) -> Optional[str]:
+    """
+    Extract the YouTube video ID from a URL.
+    
+    Args:
+        url: The YouTube URL
+        
+    Returns:
+        The video ID if found, None otherwise
+    """
+    # Common YouTube URL patterns
+    patterns = [
+        r'(?:v=|\/)([0-9A-Za-z_-]{11}).*',  # Standard YouTube URLs
+        r'(?:youtu\.be\/)([0-9A-Za-z_-]{11})',  # Short youtu.be URLs
+        r'(?:embed\/)([0-9A-Za-z_-]{11})',  # Embed URLs
+        r'(?:watch\?v=)([0-9A-Za-z_-]{11})'  # Watch URLs
+    ]
+    
+    for pattern in patterns:
+        match = re.search(pattern, url)
+        if match:
+            full_id = _PLATFORM_NAME + "/" + match.group(1)
+            return full_id
+    
+    return None
 
 async def process_youtube(url: str) -> Optional[ContentItem]:
     """
@@ -27,13 +56,7 @@ async def process_youtube(url: str) -> Optional[ContentItem]:
     logger.info(strings.CONTENT_YOUTUBE_FETCHING)
     
     try:
-        # Extract video ID from URL
-        video_id_match = re.search(r'(?:v=|\/)([0-9A-Za-z_-]{11}).*', url)
-        if not video_id_match:
-            raise ValueError(f"Could not extract video ID from URL: {url}")
             
-        video_id = video_id_match.group(1)
-        
         # Run pytube in a thread pool to avoid blocking the event loop
         def extract_info():
             yt = YouTube(url)
@@ -57,7 +80,7 @@ async def process_youtube(url: str) -> Optional[ContentItem]:
         info = await loop.run_in_executor(None, extract_info)
         
         # Get transcript using youtube_transcript_api
-        transcript_text = await get_transcript(video_id)
+        transcript_text = await get_transcript(info["video_id"])
 
         full_content = f"===== Video description BEGIN =====\n\n{info['description']}\n\n"
         full_content += f"===== Video description END =====\n\n"
@@ -65,9 +88,13 @@ async def process_youtube(url: str) -> Optional[ContentItem]:
             full_content += f"===== Video transcript BEGIN =====\n\n{transcript_text}\n\n"
             full_content += f"===== Video transcript END =====\n\n"
         
+        # Extract full video ID from URL
+        full_content_id = extract_video_id(url)
+        
         # Create a ContentItem
         content_item = ContentItem(
-            type="youtube",
+            type=_PLATFORM_NAME,
+            content_id=full_content_id,
             url=url,
             title=info["title"],
             author=info["author"],
@@ -75,6 +102,7 @@ async def process_youtube(url: str) -> Optional[ContentItem]:
             content=full_content,
             metadata={
                 "video_id": info["video_id"],
+                "content_id": f"youtube:{info['video_id']}",  # Add a standardized content_id
                 "description": info["description"],
                 "transcript": transcript_text,  # Store full transcript in metadata
                 "duration": info["length"],
@@ -87,10 +115,10 @@ async def process_youtube(url: str) -> Optional[ContentItem]:
             }
         )
         
-        # logger.info(f"YouTube content properties - Title: {sanitize_for_logging(content_item.title)}, Author: {content_item.author}, "
-        #                    f"Date: {content_item.date}, URL: {content_item.url}, Video ID: {content_item.metadata['video_id']}, "
-        #                    f"Duration: {content_item.metadata['duration']}s, Views: {content_item.metadata['views']}, "
-        #                    f"Content: {content_item.content[:100]}...")        
+
+
+
+
         logger.info(strings.CONTENT_YOUTUBE_FETCHED.format(title=sanitize_for_logging(content_item.title)))
         
         return content_item
@@ -117,7 +145,8 @@ async def get_transcript(video_id: str) -> Optional[str]:
             
             # Try to get the transcript in the default language (usually the original language)
             default_transcript = transcript.find_transcript(['fr','en'])
-            transcript_data = default_transcript.fetch().to_raw_data()
+
+            transcript_data = default_transcript.fetch()
 
             # Join all transcript segments into a single string
             return "\n".join([entry["text"] for entry in transcript_data])

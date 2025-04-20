@@ -68,6 +68,15 @@ class PiaBot(commands.Bot):
                 await ctx.send("I'm not monitoring any channels.")
         
         logger.info("Commands registered successfully")
+    
+    def set_content_id_extractor(self, extractor: Callable[[str], Awaitable[Optional[str]]]) -> None:
+        """
+        Set the content ID extractor function.
+        
+        Args:
+            extractor: A function that extracts a content ID from a URL
+        """
+        self._content_id_extractor = extractor
         
     def set_content_processor(self, processor: Callable[[str], Awaitable[Any]]) -> None:
         """
@@ -271,10 +280,38 @@ class PiaBot(commands.Bot):
         supported_domains = config.get_content().supported_domains
         return any(domain in url for domain in supported_domains)
     
+    async def _check_duplicate_by_content_id(self, content_id: str) -> Optional[discord.Thread]:
+        """
+        Check if content with the given ID has already been processed.
+    
+        Args:
+            content_id: The content ID to check
+        
+        Returns:
+            The existing thread if the content ID is a duplicate, None otherwise
+        """
+        # Use the duplicate checker if available
+        if hasattr(self, '_duplicate_checker'):
+            logger.info(f"Checking for duplicates with content ID: {content_id}")
+            existing_summary = await self._duplicate_checker(content_id)
+            if existing_summary and existing_summary.thread_url:
+                # Get the thread ID from the thread URL
+                # Thread URLs are in the format: https://discord.com/channels/{guild_id}/{channel_id}/{thread_id}
+                try:
+                    thread_id = int(existing_summary.thread_url.split('/')[-1])
+                    thread = self.get_channel(thread_id)
+                    if thread:
+                        return thread
+                except (ValueError, IndexError):
+                    logger.warning(f"Invalid thread URL in cache: {existing_summary.thread_url}")
+    
+        # No duplicate found or thread not accessible
+        return None
+
     async def _process_url(self, url: str, message: discord.Message) -> None:
         """
         Process a URL from a message.
-        
+    
         Args:
             url: The URL to process
             message: The original message
@@ -283,8 +320,16 @@ class PiaBot(commands.Bot):
         if not await self._is_supported_url(url):
             return
             
-        # Check for duplicates
-        existing_thread = await self._check_duplicate(url)
+        # Extract ID
+        content_id = await self._content_id_extractor(url)
+
+        if not content_id:
+            await message.channel.send(
+                strings.DISCORD_ID_EXTRACTION_FAILED.format(url=url)
+            )
+            return
+
+        existing_thread = await self._check_duplicate_by_content_id(content_id)
         if existing_thread:
             # Notify about duplicate
             thread_url = f"https://discord.com/channels/{message.guild.id}/{existing_thread.id}"
@@ -340,7 +385,6 @@ class PiaBot(commands.Bot):
         except Exception as e:
             logger.exception(f"Error processing URL {url}: {e}")
             await thread.send(strings.DISCORD_ERROR_FETCHING.format(url=url, error=str(e)))
-
 def create_bot() -> PiaBot:
     """
     Create and configure a new instance of the PIA Discord bot.

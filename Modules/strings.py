@@ -1,5 +1,6 @@
 # Discord messages
 DISCORD_THREAD_CREATED = "Création thread automatique"
+DISCORD_ID_EXTRACTION_FAILED = "Échec de l'extraction de l'ID pour {url}"
 DISCORD_CONTENT_FETCHED = "Contenu récupéré depuis {type}"
 DISCORD_SUMMARY_TITLE = "📝 Résumé"
 DISCORD_ERROR_FETCHING = "Erreur lors de la récupération du contenu depuis {url}: {error}"

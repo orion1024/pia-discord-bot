@@ -30,6 +30,14 @@ async def setup_bot() -> PiaBot:
     target_handler = create_target_handler()
     cache = create_cache()  # Create the cache
     
+    # Connect the content ID extractor to the bot
+    async def extract_content_id(url: str) -> Optional[str]:
+        """Extract a standardized content ID from a URL."""
+        return await content_processor.extract_content_id(url)
+
+    bot.set_content_id_extractor(extract_content_id)
+
+
     # Connect the content processor to the bot
     async def process_content(url: str) -> ContentItem:
         """Process content from a URL."""
@@ -49,9 +57,9 @@ async def setup_bot() -> PiaBot:
     bot.set_summarizer(summarize_content)
     
     # Connect the cache to the bot for duplicate detection
-    async def check_duplicate(url: str) -> Optional[SummaryItem]:
-        """Check if URL has already been processed."""
-        return cache.find_by_url(url)
+    async def check_duplicate(content_id: str) -> Optional[SummaryItem]:
+        """Check if content has already been processed."""
+        return cache.find_by_content_id(content_id)
     
     bot.set_duplicate_checker(check_duplicate)
     

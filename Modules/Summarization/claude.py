@@ -98,6 +98,7 @@ Please provide:
         # Create and return SummaryItem
         return SummaryItem(
             type=content_item.type,
+            content_id=content_item.content_id,
             title=content_item.title,
             author=content_item.author,
             url=content_item.url,

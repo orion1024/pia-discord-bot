@@ -69,6 +69,7 @@ class SummaryCache:
         """Convert a SummaryItem to a dictionary for JSON serialization."""
         return {
             "type": item.type,
+            "content_id": item.content_id,
             "title": item.title,
             "author": item.author,
             "url": item.url,
@@ -83,6 +84,7 @@ class SummaryCache:
         """Convert a dictionary to a SummaryItem."""
         return SummaryItem(
             type=data.get("type", ""),
+            content_id=data.get("content_id", ""),
             title=data.get("title", ""),
             author=data.get("author", ""),
             url=data.get("url", ""),
@@ -126,14 +128,32 @@ class SummaryCache:
         Returns:
             The matching SummaryItem, or None if not found
         """
-        logger.info(f"Finding summary by URL: {url}")
+        logger.debug(f"Finding summary by URL: {url}")
+        
         for item in self.summaries:
             if item.url == url:
                 return item
             
-        logger.info(f"No summary found for URL: {url}")
+        logger.debug(f"No summary found for URL: {url}")
+
         return None
     
+    def find_by_content_id(self, content_id: str) -> Optional[SummaryItem]:
+        """
+        Find a summary item by content ID.
+        
+        Args:
+            content_id: The content ID to search for
+            
+        Returns:
+            The matching SummaryItem, or None if not found
+        """
+        for item in self.summaries:
+            if item.content_id == content_id:
+                return item
+            
+        return None
+
     def find_by_tags(self, tags: List[str]) -> List[SummaryItem]:
         """
         Find summary items that match any of the given tags.
