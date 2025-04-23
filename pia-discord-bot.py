@@ -71,10 +71,10 @@ async def setup_bot() -> PiaBot:
     # bot.set_thread_url_updater(update_thread_url)
     
     # Connect the target handler to the bot
-    async def handle_targets(url: str, summary: str, thread) -> None:
+    async def handle_targets(url: str, summary: str, thread, summary_item: SummaryItem) -> None:
         """Send summary to targets."""
         context = {"thread": thread}
-        await target_handler.send_to_targets(url, summary, context)
+        await target_handler.send_to_targets(url, summary, context, summary_item)
     
     bot.set_target_handler(handle_targets)
     

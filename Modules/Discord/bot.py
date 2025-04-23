@@ -96,7 +96,7 @@ class PiaBot(commands.Bot):
         """
         self._summarizer = summarizer
         
-    def set_target_handler(self, handler: Callable[[str, str, discord.Thread], Awaitable[None]]) -> None:
+    def set_target_handler(self, handler: Callable[[str, str, discord.Thread, SummaryItem], Awaitable[None]]) -> None:
         """
         Set the target handler function.
         
@@ -380,7 +380,7 @@ class PiaBot(commands.Bot):
                 await thread.send("Error: Target handler not configured")
                 return
                 
-            await self._target_handler(url, formatted_summary, thread)
+            await self._target_handler(url, formatted_summary, thread, summary)
             
         except Exception as e:
             logger.exception(f"Error processing URL {url}: {e}")
