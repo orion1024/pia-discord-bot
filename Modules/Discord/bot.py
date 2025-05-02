@@ -36,7 +36,14 @@ class PiaBot(commands.Bot):
         self._content_processor = None
         self._summarizer = None
         self._target_handler = None
+
+    async def close(self):
+        if self.is_closed():
+            return
+        await self.http.close()
         
+        await super().close()
+
     async def setup_hook(self) -> None:
         """
         Set up the bot's event handlers and commands.

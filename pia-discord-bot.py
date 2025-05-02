@@ -13,8 +13,9 @@ from Modules.Summarization import create_summarizer
 from Modules.Target import create_target_handler
 from Modules.Cache import create_cache
 
-# Global variable to hold the bot instance for shutdown handling
+# Global variables
 bot_instance = None
+shutdown_in_progress = False  # Flag to prevent multiple shutdown calls
 
 async def setup_bot() -> PiaBot:
     """
@@ -36,7 +37,6 @@ async def setup_bot() -> PiaBot:
         return await content_processor.extract_content_id(url)
 
     bot.set_content_id_extractor(extract_content_id)
-
 
     # Connect the content processor to the bot
     async def process_content(url: str) -> ContentItem:
@@ -63,13 +63,6 @@ async def setup_bot() -> PiaBot:
     
     bot.set_duplicate_checker(check_duplicate)
     
-    # Connect the cache to the bot for thread URL updates
-    # async def update_thread_url(url: str, thread_url: str) -> None:
-    #     """Update thread URL in cache."""
-    #     await cache.update_thread_url(url, thread_url)
-    
-    # bot.set_thread_url_updater(update_thread_url)
-    
     # Connect the target handler to the bot
     async def handle_targets(url: str, summary: str, thread, summary_item: SummaryItem) -> None:
         """Send summary to targets."""
@@ -84,9 +77,6 @@ async def setup_bot() -> PiaBot:
     
     return bot
 
-# Global variables
-bot_instance = None
-
 async def shutdown(signal=None):
     """
     Gracefully shut down the bot.
@@ -94,7 +84,14 @@ async def shutdown(signal=None):
     Args:
         signal: The signal that triggered the shutdown (optional)
     """
-
+    global shutdown_in_progress
+    
+    # Prevent multiple shutdown calls
+    if shutdown_in_progress:
+        return
+    
+    shutdown_in_progress = True
+    
     if signal:
         logging.info(f"Received exit signal {signal.name}...")
     
@@ -104,6 +101,19 @@ async def shutdown(signal=None):
     if bot_instance and bot_instance.is_ready():
         logging.info("Closing Discord connection...")
         await bot_instance.close()
+    
+    # Cancel all running tasks except the current one
+    # tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
+    # if tasks:
+    #     logging.info(f"Cancelling {len(tasks)} pending tasks...")
+    #     for task in tasks:
+    #         task.cancel()
+        
+    #     # Wait for tasks to be cancelled with a timeout
+    #     try:
+    #         await asyncio.wait(tasks, timeout=2)
+    #     except Exception as e:
+    #         logging.warning(f"Error while cancelling tasks: {e}")
     
     logging.info("Shutdown complete")
 
@@ -171,10 +181,14 @@ def main():
     
     # Run the async main function
     try:
+        # On Windows, use a specific event loop policy to avoid the shutdown error
+        if sys.platform.startswith('win'):
+            asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+        
         asyncio.run(main_async())
     except KeyboardInterrupt:
         # This will be caught if Ctrl+C is pressed before asyncio.run starts
-         logging.info("Interrupted by user")
+        logging.info("Interrupted by user")
     except Exception as e:
         logging.error(f"Unhandled exception: {e}")
         sys.exit(1)

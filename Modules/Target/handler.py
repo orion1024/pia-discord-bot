@@ -141,40 +141,37 @@ async def send_to_coda(url: str, summary: str, context: Dict[str, Any], summary_
             # Initialize Coda client
             coda = Coda(coda_config.api_key)
             # Get the doc and table
-            doc = coda.get_doc(coda_config.doc_id, coda=coda)
+            doc = Document(coda_config.doc_id, coda=coda)
             table = doc.get_table(coda_config.table_id)
             
             # Prepare cells for the row
             cells = []
-            cells.append(Cell(column='URL', value_storage=url))
-            cells.append(Cell(column='Discord', value_storage=url))
-            cells.append(Cell(column='Type', value_storage=summary_item.content_type))
+            cells.append(Cell(column='URL', value_storage=summary_item.url))
+            cells.append(Cell(column='Discord', value_storage=summary_item.thread_url))
+            cells.append(Cell(column='Type', value_storage=summary_item.type))
             cells.append(Cell(column='ID', value_storage=summary_item.content_id))
             cells.append(Cell(column='Auteur', value_storage=summary_item.author))
             cells.append(Cell(column='Tags', value_storage=summary_item.tags))
             cells.append(Cell(column='Titre', value_storage=summary_item.title))
             cells.append(Cell(column='Résumé', value_storage=summary_item.summary))
             
-cells = []
-cells.append(Cell(column='URL', value_storage="test"))
-cells.append(Cell(column='Discord', value_storage="https://discord.com/channels/1214198954321907842/1364567130762117180"))
-cells.append(Cell(column='Type', value_storage="test"))
-cells.append(Cell(column='ID', value_storage="test"))
-cells.append(Cell(column='Auteur', value_storage="test"))
-cells.append(Cell(column='Tags', value_storage="test"))
-cells.append(Cell(column='Titre', value_storage="test"))
-cells.append(Cell(column='Résumé', value_storage="test"))
+            # cells = []
+            # cells.append(Cell(column='URL', value_storage="test"))
+            # cells.append(Cell(column='Discord', value_storage="https://discord.com/channels/1214198954321907842/1364567130762117180"))
+            # cells.append(Cell(column='Type', value_storage="test"))
+            # cells.append(Cell(column='ID', value_storage="test"))
+            # cells.append(Cell(column='Auteur', value_storage="test"))
+            # cells.append(Cell(column='Tags', value_storage="test"))
+            # cells.append(Cell(column='Titre', value_storage="test"))
+            # cells.append(Cell(column='Résumé', value_storage="test"))
+            
+             # Add tags if available
+            if hasattr(summary_item, 'tags') and summary_item.tags:
+                cells.append(Cell(column='Tags', value_storage=", ".join(summary_item.tags)))
             
             # Upsert the row to the table
             result = table.upsert_row(cells)
-
-            # Add tags if available
-            if hasattr(summary_item, 'tags') and summary_item.tags:
-                row_data["Tags"] = ", ".join(summary_item.tags)
-            
-            # Add the row to the table
-            result = table.create_row(row_data)
-            
+           
             return result
         
         # Run the Coda API call in a thread pool
