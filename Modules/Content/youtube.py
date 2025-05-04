@@ -149,7 +149,7 @@ async def get_transcript(video_id: str) -> Optional[str]:
             transcript_data = default_transcript.fetch()
 
             # Join all transcript segments into a single string
-            return "\n".join([entry["text"] for entry in transcript_data])
+            return "\n".join([entry.text for entry in transcript_data])
             
         loop = asyncio.get_event_loop()
         transcript = await loop.run_in_executor(None, fetch_transcript)

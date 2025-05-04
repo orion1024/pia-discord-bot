@@ -59,7 +59,8 @@ async def setup_bot() -> PiaBot:
     # Connect the cache to the bot for duplicate detection
     async def check_duplicate(content_id: str) -> Optional[SummaryItem]:
         """Check if content has already been processed."""
-        return cache.find_by_content_id(content_id)
+        item = await cache.find_by_content_id(content_id)
+        return item
     
     bot.set_duplicate_checker(check_duplicate)
     

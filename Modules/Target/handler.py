@@ -196,6 +196,5 @@ def create_target_handler() -> TargetHandler:
     
     # Register handlers for supported targets
     handler.register_handler("discord", send_to_discord)
-    handler.register_handler("coda", send_to_coda)
     
     return handler
