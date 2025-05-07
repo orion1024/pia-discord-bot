@@ -1,5 +1,4 @@
-import logging
-import re
+import os, json, datetime, re, logging
 
 from typing import List, Optional, Callable, Any, Awaitable, Dict
 import discord
@@ -73,6 +72,23 @@ class PiaBot(commands.Bot):
                 await ctx.send("I'm monitoring these channels:\n" + "\n".join(channel_list))
             else:
                 await ctx.send("I'm not monitoring any channels.")
+        
+        @self.command(name="scan", help="Scan channel messages for links (days_back: int)")
+        async def scan(ctx, days_back: int):
+            """Scan channel messages for the specified number of days back."""
+            if days_back <= 0:
+                await ctx.send("Please provide a positive number of days to scan.")
+                return
+            
+            await ctx.send(f"Starting to scan messages from the last {days_back} days in this channel...")
+        
+            # Call the placeholder method that will handle the scanning logic
+            scan_results = await self._scan_channel_messages(ctx.channel, days_back)
+        
+            # Reply with results
+            await ctx.send(f"Scan complete! Messages scanned: {scan_results['scanned']}, "
+                          f"Already processed: {scan_results['processed']}, "
+                          f"Not yet processed: {scan_results['not_processed']}")
         
         logger.info("Commands registered successfully")
     
@@ -392,6 +408,144 @@ class PiaBot(commands.Bot):
         except Exception as e:
             logger.exception(f"Error processing URL {url}: {e}")
             await thread.send(strings.DISCORD_ERROR_FETCHING.format(url=url, error=str(e)))
+
+    async def _scan_channel_messages(self, channel, days_back: int) -> dict:
+        """
+        Scan messages in a channel for supported links.
+        
+        Args:
+            channel: The Discord channel to scan
+            days_back: Number of days back to scan
+            
+        Returns:
+            Dictionary with scan statistics
+        """
+        logger.info(f"Scanning messages in channel {channel.name} for the past {days_back} days")
+        
+        # Calculate the cutoff time
+        cutoff_time = discord.utils.utcnow() - datetime.timedelta(days=days_back)
+        
+        # Initialize counters
+        scanned = 0
+        already_processed = 0
+        not_processed = 0
+        
+        # Initialize list to store unprocessed URLs
+        unprocessed_urls = []
+        
+        # Fetch messages from the channel
+        async for message in channel.history(limit=None, after=cutoff_time):
+            # Skip messages from the bot itself
+            if message.author == self.user:
+                continue
+            
+            # Skip messages in threads - we only want messages directly in the channel
+            # Messages that start threads will be in the channel, not in the thread itself
+            if hasattr(message, 'channel') and isinstance(message.channel, discord.Thread):
+                continue
+            
+            scanned += 1
+            
+            # Extract URLs from the message content
+            urls = await self._extract_urls(message.content)
+            
+            # Check if any of the URLs are supported
+            for url in urls:
+                if await self._is_supported_url(url):
+                    logger.info(f"Found supported URL: {url} in message {message.id}")
+                    
+                    # Extract content ID
+                    content_id = await self._content_id_extractor(url)
+                    if not content_id:
+                        logger.warning(f"Could not extract content ID from URL: {url}")
+                        continue
+                    
+                    # Check if URL has already been processed
+                    existing_thread = None
+                    if hasattr(self, '_duplicate_checker'):
+                        existing_summary = await self._duplicate_checker(content_id)
+                        if existing_summary and existing_summary.thread_url:
+                            try:
+                                thread_id = int(existing_summary.thread_url.split('/')[-1])
+                                existing_thread = self.get_channel(thread_id)
+                            except (ValueError, IndexError):
+                                logger.warning(f"Invalid thread URL in cache: {existing_summary.thread_url}")
+                    
+                    if existing_thread:
+                        logger.info(f"URL already processed: {url}, thread: {existing_thread.id}")
+                        already_processed += 1
+                    else:
+                        logger.info(f"URL not yet processed: {url}")
+                        not_processed += 1
+                        
+                        # Store information about the unprocessed URL
+                        thread_id = message.thread.id if hasattr(message, 'thread') and message.thread else None
+                        unprocessed_urls.append({
+                            "url": url,
+                            "content_id": content_id,
+                            "message_id": message.id,
+                            "thread_id": thread_id,
+                            "channel_id": message.channel.id,
+                            "timestamp": message.created_at.isoformat()
+                        })
+        
+        # Save unprocessed URLs to a JSON file
+        if unprocessed_urls:
+            try:
+                # Create directory if it doesn't exist
+                os.makedirs('data', exist_ok=True)
+                
+                # Generate filename with timestamp
+                filename = f"data/unprocessed_urls.json"
+                
+                # Load existing unprocessed URLs if the file exists
+                existing_urls = []
+                if os.path.exists(filename):
+                    try:
+                        with open(filename, 'r', encoding='utf-8') as f:
+                            existing_urls = json.load(f)
+                        if not isinstance(existing_urls, list):
+                            logger.warning(f"Existing file {filename} does not contain a list. Creating new file.")
+                            existing_urls = []
+                    except json.JSONDecodeError:
+                        logger.warning(f"Could not parse existing file {filename}. Creating new file.")
+                        existing_urls = []
+                
+                if len(existing_urls) > 0:
+                    # Filter out duplicates before appending new unprocessed URLs
+                    existing_content_ids = [url["content_id"] for url in existing_urls]
+                    new_unique_urls = [url for url in unprocessed_urls if url["content_id"] not in existing_content_ids]
+                    
+                    # Append new unique URLs to existing ones
+                    combined_urls = existing_urls + new_unique_urls
+
+                                    # Log information about duplicates
+                    if len(new_unique_urls) > 0:
+                        logger.info(f"New unique URLs: {len(new_unique_urls)}")
+                    else:
+                        logger.info("No new unique URLs found.")
+                    new_unprocessed_urls_count = len(new_unique_urls)
+                else:
+                    combined_urls = unprocessed_urls
+                    new_unprocessed_urls_count = len(unprocessed_urls)
+                
+                # Write combined list to file
+                with open(filename, 'w', encoding='utf-8') as f:
+                    json.dump(combined_urls, f, indent=2)
+                    
+                logger.info(f"Added {new_unprocessed_urls_count} unprocessed URLs to {filename} (total: {len(combined_urls)})")
+            except Exception as e:
+                logger.error(f"Error saving unprocessed URLs to file: {e}")
+        
+        # Return statistics
+        return {
+            "scanned": scanned,
+            "processed": already_processed,
+            "not_processed": not_processed
+        }
+
+
+            
 def create_bot() -> PiaBot:
     """
     Create and configure a new instance of the PIA Discord bot.
@@ -451,3 +605,5 @@ def format_summary_for_discord(summary_item: SummaryItem) -> str:
         table += tags_formatted + "\n"
     
     return table
+
+    

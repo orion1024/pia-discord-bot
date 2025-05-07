@@ -3,7 +3,7 @@ import os
 import logging
 from typing import List, Dict, Any, Optional
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from codaio import Coda, Document, Cell, Row
 from Modules.Commons import config, SummaryItem
@@ -28,6 +28,13 @@ class SummaryCache:
         self.summaries = []
         self.summary_id_dict = {}
         self.lock = asyncio.Lock()  # For thread-safe operations
+        self.last_sync_time = None  # Track when the last sync occurred
+        
+         # Get sync interval from config
+        cache_config = config.get_cache_config()
+        sync_minutes = cache_config.sync_interval_minutes
+        self.sync_interval = timedelta(minutes=sync_minutes)
+        logger.info(f"Using sync interval of {sync_minutes} minutes")
         
         # Initialize Coda client
         target_config = config.get_target()
@@ -81,10 +88,23 @@ class SummaryCache:
         except Exception as e:
             logger.error(f"Error saving local cache: {e}")
     
-    async def _sync_with_coda(self) -> None:
-        """Synchronize the local cache with Coda."""
+    async def _sync_with_coda(self, force_sync: bool = False) -> None:
+        """
+        Synchronize the local cache with Coda.
+        
+        Args:
+            force_sync: If True, sync regardless of the time since last sync
+        """
         if not self.coda_enabled:
             return
+        
+        # Check if sync is needed based on time elapsed
+        current_time = datetime.now()
+        if not force_sync and self.last_sync_time:
+            time_since_last_sync = current_time - self.last_sync_time
+            if time_since_last_sync < self.sync_interval:
+                logger.debug(f"Skipping Coda sync - last sync was {time_since_last_sync.total_seconds()/60:.1f} minutes ago")
+                return
             
         try:
             # Run in a thread pool to avoid blocking the event loop
@@ -113,6 +133,9 @@ class SummaryCache:
             
             # Save updated local cache
             await self._save_cache()
+            
+            # Update the last sync time
+            self.last_sync_time = current_time
             
             logger.info(f"Synchronized local cache with Coda ({len(coda_summaries)} items)")
         except Exception as e:

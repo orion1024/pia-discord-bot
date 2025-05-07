@@ -33,6 +33,7 @@ class LoggingConfig(BaseModel):
 
 class CacheConfig(BaseModel):
     file: str = "summary_cache.json"
+    sync_interval_minutes: int = 30  # Default to 30 minutes
 
 class BotConfig(BaseModel):
     discord: DiscordConfig
@@ -129,6 +130,11 @@ class Config:
         """Get logging configuration."""
         self._ensure_loaded()
         return self._config.logging
+    
+    def get_cache_config(self) -> CacheConfig:
+        """Get cache configuration."""
+        self._ensure_loaded()
+        return self._config.cache
     
     def _ensure_loaded(self) -> None:
         """Ensure configuration is loaded."""
