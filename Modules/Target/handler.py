@@ -99,17 +99,9 @@ async def send_to_discord(url: str, summary: str, context: Dict[str, Any], summa
     if not isinstance(thread, discord.Thread):
         raise ValueError("Discord context must contain a valid thread")
     
-    try:
-        # Format the summary message
-        message = f"**{strings.DISCORD_SUMMARY_TITLE}**\n\n{summary}"
-        
-        # Add tags if available
-        if hasattr(summary_item, 'tags') and summary_item.tags:
-            tags_str = ", ".join([f"#{tag}" for tag in summary_item.tags])
-            message += f"\n\n**Tags:** {tags_str}"
-        
+    try:               
         # Send the summary to the thread
-        await thread.send(message)
+        await thread.send(summary)
         
     except Exception as e:
         logger.exception(f"Error sending summary to Discord: {e}")

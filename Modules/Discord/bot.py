@@ -90,6 +90,149 @@ class PiaBot(commands.Bot):
                           f"Already processed: {scan_results['processed']}, "
                           f"Not yet processed: {scan_results['not_processed']}")
         
+        @self.command(name="queue", help="Display information about unprocessed URLs")
+        async def queue(ctx):
+            """Display information about unprocessed URLs from the local file."""
+            try:
+                # Check if the unprocessed URLs file exists
+                filename = "data/unprocessed_urls.json"
+                if not os.path.exists(filename):
+                    await ctx.send("No unprocessed URLs found.")
+                    return
+            
+                # Load unprocessed URLs from file
+                with open(filename, 'r', encoding='utf-8') as f:
+                    unprocessed_urls = json.load(f)
+            
+                if not unprocessed_urls:
+                    await ctx.send("No unprocessed URLs in queue.")
+                    return
+            
+                # Count total unprocessed URLs
+                total_urls = len(unprocessed_urls)
+        
+                # Count URLs in existing threads
+                urls_in_threads = sum(1 for url in unprocessed_urls if url.get("thread_id"))
+        
+                # Group by content type (extracted from content_id)
+                content_types = {}
+                for url in unprocessed_urls:
+                    content_id = url.get("content_id", "")
+                    # Content ID format is typically "type/id", e.g., "youtube/abc123"
+                    content_type = content_id.split("/")[0] if "/" in content_id else "unknown"
+                    content_types[content_type] = content_types.get(content_type, 0) + 1
+            
+                # Create a formatted message
+                message = f"**Unprocessed URLs Queue**\n\n"
+                message += f"Total unprocessed URLs: **{total_urls}**\n"
+                message += f"URLs in existing threads: **{urls_in_threads}**\n"
+                message += f"URLs without threads: **{total_urls - urls_in_threads}**\n\n"
+        
+                # Add breakdown by content type
+                message += "**Breakdown by content type:**\n"
+                for content_type, count in sorted(content_types.items(), key=lambda x: x[1], reverse=True):
+                    percentage = (count / total_urls) * 100
+                    message += f"- {content_type}: **{count}** ({percentage:.1f}%)\n"
+            
+                await ctx.send(message)
+        
+            except Exception as e:
+                logger.exception(f"Error displaying queue: {e}")
+                await ctx.send(f"An error occurred while retrieving the queue: {str(e)}")
+        
+        @self.command(name="process", help="Process unprocessed URLs from the queue")
+        async def process_queue(ctx, limit: int = 5):
+            """
+            Process unprocessed URLs from the queue.
+            
+            Args:
+                limit: Maximum number of URLs to process (default: 5)
+            """
+            try:
+                # Check if the unprocessed URLs file exists
+                filename = "data/unprocessed_urls.json"
+                if not os.path.exists(filename):
+                    await ctx.message.reply("No unprocessed URLs found.")
+                    return
+                
+                # Load unprocessed URLs from file
+                with open(filename, 'r', encoding='utf-8') as f:
+                    unprocessed_urls = json.load(f)
+                
+                if not unprocessed_urls:
+                    await ctx.message.reply("No unprocessed URLs in queue.")
+                    return
+                
+                # Limit the number of URLs to process
+                urls_to_process = unprocessed_urls[:limit]
+            
+                # Send an initial feedback message that we'll update
+                feedback_content = "Starting to process URLs from the queue...\n\n"
+                feedback_message = await ctx.message.reply(feedback_content, suppress_embeds=True)
+                
+                # Process each URL
+                processed_indices = []
+                success_count = 0
+                error_count = 0
+            
+                for i, url_data in enumerate(urls_to_process):
+                    url = url_data.get("url")
+                    if not url:
+                        continue
+                    
+                    try:
+                        # Get the original message if possible
+                        message = None
+                        channel_id = url_data.get("channel_id")
+                        message_id = url_data.get("message_id")
+                    
+                        if channel_id and message_id:
+                            try:
+                                channel = self.get_channel(int(channel_id))
+                                if channel:
+                                    message = await channel.fetch_message(int(message_id))
+                            except Exception as e:
+                                logger.warning(f"Could not fetch original message: {e}")
+                                continue
+                    
+                        # Process the URL
+                        feedback_content += f"Processing URL {i+1}/{len(urls_to_process)}: {url}\n"
+                        await feedback_message.edit(content=feedback_content, suppress=True)
+                        
+                        summary = await self._process_url(url, message)
+                    
+                        # Mark as processed
+                        processed_indices.append(i)
+                        success_count += 1
+                        feedback_content += f"✅ Successfully processed content: {summary.title}\n"
+                        await feedback_message.edit(content=feedback_content, suppress=True)
+                    
+                    except Exception as e:
+                        logger.exception(f"Error processing URL {url}: {e}")
+                        feedback_content += f"❌ Error processing URL {url}: {str(e)}\n"
+                        await feedback_message.edit(content=feedback_content, suppress=True)
+                        error_count += 1
+            
+                # Remove processed URLs from the file
+                if processed_indices:
+                    # Remove in reverse order to avoid index issues
+                    for i in sorted(processed_indices, reverse=True):
+                        if i < len(unprocessed_urls):
+                            unprocessed_urls.pop(i)
+                
+                    # Save updated list back to file
+                    with open(filename, 'w', encoding='utf-8') as f:
+                        json.dump(unprocessed_urls, f, indent=2)
+            
+                # Send summary
+                feedback_content += f"\nProcessing complete. Successfully processed: {success_count}, Errors: {error_count}, Remaining in queue: {len(unprocessed_urls)}"
+                await feedback_message.edit(content=feedback_content, suppress=True)
+            
+            except Exception as e:
+                logger.exception(f"Error processing queue: {e}")
+                await ctx.message.reply(f"An error occurred while processing the queue: {str(e)}")
+
+
         logger.info("Commands registered successfully")
     
     def set_content_id_extractor(self, extractor: Callable[[str], Awaitable[Optional[str]]]) -> None:
@@ -257,8 +400,11 @@ class PiaBot(commands.Bot):
         # Process each URL
         for url in urls:
             if await self._is_supported_url(url):
-                logger.info(f"Processing URL: {url} from message {message.id}")
-                await self._process_url(url, message)
+                try:
+                    logger.info(f"Processing URL: {url} from message {message.id}")
+                    await self._process_url(url, message)
+                except Exception as e:
+                    logger.error(f"Error processing URL {url}: {e}")
     
     async def on_command_error(self, ctx, error):
         """
@@ -338,6 +484,7 @@ class PiaBot(commands.Bot):
         Args:
             url: The URL to process
             message: The original message
+            is_from_queue: Whether this URL is being processed from the queue
         """
         # Check if the URL is supported
         if not await self._is_supported_url(url):
@@ -347,36 +494,40 @@ class PiaBot(commands.Bot):
         content_id = await self._content_id_extractor(url)
 
         if not content_id:
-            await message.channel.send(
+            await message.reply(
                 strings.DISCORD_ID_EXTRACTION_FAILED.format(url=url)
             )
-            return
-
+            raise ValueError(f"Could not extract content ID from URL: {url}")
+        
+        # Check for duplicates
         existing_thread = await self._check_duplicate_by_content_id(content_id)
         if existing_thread:
             # Notify about duplicate
             thread_url = f"https://discord.com/channels/{message.guild.id}/{existing_thread.id}"
-            await message.channel.send(
+            await message.reply(
                 strings.DISCORD_DUPLICATE_DETECTED.format(thread_url=thread_url)
             )
             return
-            
-        # Create a thread for the URL
-        thread = await self._create_thread(url, message)
+        else:
+            # Retrieve the existing thread or create a new one if none exists
+            if hasattr(message, 'thread') and message.thread:
+                thread = message.thread
+            else:
+                thread = await self._create_thread(url, message)
         
         try:
             # Fetch content
             if not self._content_processor:
                 logger.error("Content processor not set")
                 await thread.send("Error: Content processor not configured")
-                return
+                raise RuntimeError("Content processor not configured")
                 
             await thread.send(strings.CONTENT_YOUTUBE_FETCHING)
             content_item = await self._content_processor(url)
             
             if not content_item:
                 await thread.send(f"Could not fetch content from {url}")
-                return
+                raise ValueError(f"Could not fetch content from {url}")
                 
             await thread.send(strings.DISCORD_CONTENT_FETCHED.format(type=content_item.type))
             
@@ -384,30 +535,35 @@ class PiaBot(commands.Bot):
             if not self._summarizer:
                 logger.error("Summarizer not set")
                 await thread.send("Error: Summarizer not configured")
-                return
+                raise RuntimeError("Summarizer not configured")
                 
             await thread.send(strings.SUMMARIZATION_PROCESSING)
             summary = await self._summarizer(content_item, thread.jump_url)
             
-            formatted_summary = format_summary_for_discord(summary)
-
+            
             if not summary:
                 await thread.send("Could not generate summary")
-                return
-                
+                raise ValueError("Could not generate summary")
+            
+            formatted_summary = format_summary_for_discord(summary)
+            await thread.edit(name=f"Discussion : {content_item.title}", locked=False)
             await thread.send(strings.SUMMARIZATION_COMPLETE)
             
             # Send to targets
             if not self._target_handler:
                 logger.error("Target handler not set")
                 await thread.send("Error: Target handler not configured")
-                return
+                raise RuntimeError("Target handler not configured")
                 
             await self._target_handler(url, formatted_summary, thread, summary)
+
+            return summary
             
         except Exception as e:
             logger.exception(f"Error processing URL {url}: {e}")
             await thread.send(strings.DISCORD_ERROR_FETCHING.format(url=url, error=str(e)))
+            # Re-raise the exception for the queue processor to handle
+            raise
 
     async def _scan_channel_messages(self, channel, days_back: int) -> dict:
         """
@@ -584,23 +740,14 @@ def format_summary_for_discord(summary_item: SummaryItem) -> str:
         A string containing the formatted summary for Discord
     """
     # Create a Discord-formatted table using Markdown
-    table = "# Summary for: " + summary_item.title + "\n\n"
+    table = "# Résumé pour " + summary_item.title + "\n\n"
     
     # Add the summary section
-    table += "## Summary\n"
     table += summary_item.summary + "\n\n"
-    
-    # Add metadata table
-    table += "## Metadata\n"
-    table += "| Property | Value |\n"
-    table += "|----------|-------|\n"
-    table += f"| Type | {summary_item.type} |\n"
-    table += f"| Author | {summary_item.author} |\n"
-    table += f"| URL | {summary_item.url} |\n"
     
     # Add tags section
     if summary_item.tags:
-        table += "\n## Tags\n"
+        table += "\n## Tags :\n"
         tags_formatted = ", ".join([f"`{tag}`" for tag in summary_item.tags])
         table += tags_formatted + "\n"
     

@@ -44,11 +44,14 @@ I need you to summarize the following YouTube video:
 Title: {title}
 Creator: {author}
 
-Content:
+Start of content:
+
 {main_content}
 
+End of content.
+
 Please provide:
-1. A concise summary (1-2 paragraphs) of the main points and key information. This summary MUST be in french, regardless of the content original language.
+1. A concise summary (from 1 to 4 paragraphs depending on the length of the content) of the main points and key information. This summary MUST be in french, regardless of the content original language.
 2. A list of 5-10 relevant tags or keywords, including the names of people mentioned
 3. Format your response as a JSON object with the following structure:
 {{
