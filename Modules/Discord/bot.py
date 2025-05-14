@@ -231,7 +231,64 @@ class PiaBot(commands.Bot):
             except Exception as e:
                 logger.exception(f"Error processing queue: {e}")
                 await ctx.message.reply(f"An error occurred while processing the queue: {str(e)}")
-
+                
+        @self.command(name="search", help="Search for summaries by tag (search_term: str)")
+        async def search_by_tag(ctx, *, search_term: str):
+            """
+            Search for summaries that have tags matching the given search term.
+            
+            Args:
+                search_term: The term to search for in tags
+            """
+            if not hasattr(self, '_summary_retriever'):
+                await ctx.send("Error: Summary retriever not configured")
+                return
+            
+            try:
+                # Get all summaries
+                all_summaries = await self._summary_retriever()
+            
+                if not all_summaries:
+                    await ctx.send("No summaries found in the cache.")
+                    return
+                
+                # Filter summaries by tag match (case-insensitive)
+                search_term = search_term.lower()
+                matching_summaries = []
+            
+                for summary in all_summaries:
+                    # Check if any tag contains the search term
+                    if any(search_term in tag.lower() for tag in summary.tags):
+                        matching_summaries.append(summary)
+            
+                if not matching_summaries:
+                    await ctx.send(f"No summaries found with tags matching '{search_term}'.")
+                    return
+                
+                # Format results
+                result_lines = []
+                for i, summary in enumerate(matching_summaries, 1):
+                    # Extract thread ID from thread URL
+                    thread_id = summary.thread_url.split('/')[-1] if summary.thread_url else "Unknown"
+                    thread_link = f"<https://discord.com/channels/{ctx.guild.id}/{thread_id}>"
+                
+                    # Format matching tags
+                    matching_tags = [f"`{tag}`" for tag in summary.tags if search_term in tag.lower()]
+                    tags_str = ", ".join(matching_tags)
+                
+                    # Create result line with title and link
+                    result_lines.append(f"{i}. **{summary.title}** - {thread_link} - Tags: {tags_str}")
+            
+                # Create response message
+                response = f"**Found {len(matching_summaries)} summaries with tags matching '{search_term}':**\n\n"
+                response += "\n".join(result_lines)
+            
+                # Send response
+                await ctx.send(response)
+        
+            except Exception as e:
+                logger.exception(f"Error searching summaries by tag: {e}")
+                await ctx.send(f"An error occurred while searching: {str(e)}")
 
         logger.info("Commands registered successfully")
     
@@ -288,6 +345,15 @@ class PiaBot(commands.Bot):
             updater: A function that updates the thread URL for a URL
         """
         self._thread_url_updater = updater
+
+    def set_summary_retriever(self, retriever: Callable[[], Awaitable[List[SummaryItem]]]) -> None:
+        """
+        Set the summary retriever function.
+        
+        Args:
+            retriever: A function that retrieves all summary items from the cache
+        """
+        self._summary_retriever = retriever
 
     async def _check_duplicate(self, url: str) -> Optional[discord.Thread]:
         """
@@ -752,5 +818,3 @@ def format_summary_for_discord(summary_item: SummaryItem) -> str:
         table += tags_formatted + "\n"
     
     return table
-
-    
