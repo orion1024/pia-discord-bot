@@ -59,7 +59,7 @@ async def process_youtube(url: str) -> Optional[ContentItem]:
             
         # Run pytube in a thread pool to avoid blocking the event loop
         def extract_info():
-            yt = YouTube(url)
+            yt = YouTube(url,"WEB")
             return {
                 "title": yt.title,
                 "author": yt.author,
