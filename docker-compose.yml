@@ -8,4 +8,3 @@ services:
       - "5000:5000"
     volumes:
       - ./data:/app/data
-      - ./pia-discord-bot_config.json:/app/pia-discord-bot_config.json
