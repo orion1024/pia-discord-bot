@@ -2,7 +2,7 @@ import logging
 from typing import Dict, Any, Callable, Awaitable, Optional, List
 import json
 
-from Modules.Commons import config, sanitize_for_logging, SummaryItem, ContentItem
+from Modules.Commons import config, sanitize_for_logging, SummaryItem, ContentItem, TagInfo
 
 from .claude import summarize_with_claude
 from .openai import summarize_with_chatgpt
@@ -11,7 +11,7 @@ from .openai import summarize_with_chatgpt
 logger = logging.getLogger(__name__)
 
 # Type definition for summarizer functions
-SummarizerFunc = Callable[[ContentItem], Awaitable[SummaryItem]]
+SummarizerFunc = Callable[[ContentItem, Optional[Dict[str, TagInfo]]], Awaitable[SummaryItem]]
 
 class Summarizer:
     """
@@ -34,12 +34,13 @@ class Summarizer:
         self._summarizers[provider] = summarizer
         logger.info(f"Registered summarizer for provider: {provider}")
         
-    async def summarize(self, content_item: ContentItem) -> SummaryItem:
+    async def summarize(self, content_item: ContentItem, tag_info: Optional[Dict[str, TagInfo]] = None) -> SummaryItem:
         """
         Summarize content using the configured LLM provider.
         
         Args:
             content_item: The ContentItem to summarize
+            tag_info: Optional dictionary of TagInfo objects to help with tagging
             
         Returns:
             A SummaryItem containing the summary and metadata
@@ -63,7 +64,7 @@ class Summarizer:
         try:
             # Generate the summary
             logger.info(f"Generating summary using provider: {provider}")
-            summary_item = await summarizer(content_item)
+            summary_item = await summarizer(content_item, tag_info)
             
             # Log a sanitized version of the summary for debugging
             logger.info(f"Generated tags: {sanitize_for_logging(summary_item.tags[:100])}...")

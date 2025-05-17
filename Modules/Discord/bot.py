@@ -249,7 +249,7 @@ class PiaBot(commands.Bot):
                 all_summaries = await self._summary_retriever()
             
                 if not all_summaries:
-                    await ctx.message.reply("No summaries found in the cache.")
+                    await ctx.message.reply("Aucun thread trouvé.")
                     return
                 
                 # Filter summaries by tag match (case-insensitive)
@@ -262,7 +262,7 @@ class PiaBot(commands.Bot):
                         matching_summaries.append(summary)
             
                 if not matching_summaries:
-                    await ctx.message.reply(f"No summaries found with tags matching '{search_term}'.")
+                    await ctx.message.reply(f"Aucun thread ne correspond à '{search_term}'.")
                     return
                 
                 # Format results
@@ -280,7 +280,7 @@ class PiaBot(commands.Bot):
                     result_lines.append(f"{i}. **[{summary.title}]({thread_link})** - Tags: {tags_str}")
             
                 # Create response message
-                response = f"**Found {len(matching_summaries)} summaries with tags matching '{search_term}':**\n\n"
+                response = f"**{len(matching_summaries)} threads trouvés avec des tags correspondant à '{search_term}':**\n\n"
                 response += "\n".join(result_lines)
             
                 # Send response
@@ -288,7 +288,7 @@ class PiaBot(commands.Bot):
         
             except Exception as e:
                 logger.exception(f"Error searching summaries by tag: {e}")
-                await ctx.message.reply(f"An error occurred while searching: {str(e)}")
+                await ctx.message.reply(f"Erreur pendant la recherche: {str(e)}")
 
         logger.info("Commands registered successfully")
     
@@ -576,7 +576,8 @@ class PiaBot(commands.Bot):
             return
         else:
             # Retrieve the existing thread or create a new one if none exists
-            if hasattr(message, 'thread') and message.thread:
+            new_thread_needed = hasattr(message, 'thread') and message.thread
+            if new_thread_needed:
                 thread = message.thread
             else:
                 thread = await self._create_thread(url, message)
@@ -612,10 +613,11 @@ class PiaBot(commands.Bot):
                 raise ValueError("Could not generate summary")
             
             formatted_summary = format_summary_for_discord(summary)
-            await thread.edit(name=f"Discussion : {content_item.title}", locked=False)
+            if not new_thread_needed:
+                await thread.edit(name=f"Discussion : {content_item.title}", locked=False)
             await thread.send(strings.SUMMARIZATION_COMPLETE)
             
-            # Send to targets
+            # Send to targets, including Discord
             if not self._target_handler:
                 logger.error("Target handler not set")
                 await thread.send("Error: Target handler not configured")

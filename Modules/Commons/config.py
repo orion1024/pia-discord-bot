@@ -22,6 +22,7 @@ class CodaConfig(BaseModel):
     api_key: str
     doc_id: str
     table_id: str
+    tag_table_id: str  # Added tag table ID
 
 class TargetConfig(BaseModel):
     coda: CodaConfig

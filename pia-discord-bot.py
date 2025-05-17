@@ -6,7 +6,7 @@ import asyncio
 import signal
 from typing import Dict, Any, Optional, List
 
-from Modules.Commons import config, ConfigurationError, ContentItem, SummaryItem
+from Modules.Commons import config, ConfigurationError, ContentItem, SummaryItem, TagInfo
 from Modules.Discord import create_bot, start_bot, PiaBot
 from Modules.Content import create_content_processor
 from Modules.Summarization import create_summarizer
@@ -48,8 +48,13 @@ async def setup_bot() -> PiaBot:
     # Connect the summarizer to the bot
     async def summarize_content(content_item: ContentItem, thread_url: str) -> SummaryItem:
         """Summarize content."""
-        summary_item = await summarizer.summarize(content_item)
+        # Get tag information from cache
+        tag_info = await cache.get_tag_info()
+        
+        # Pass tag information to summarizer
+        summary_item = await summarizer.summarize(content_item, tag_info)
         summary_item.thread_url = thread_url
+        
         # Add to cache after summarization
         await cache.add_summary(summary_item)
         return summary_item

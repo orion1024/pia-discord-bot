@@ -6,7 +6,7 @@ import asyncio
 from datetime import datetime, timedelta
 
 from codaio import Coda, Document, Cell, Row
-from Modules.Commons import config, SummaryItem
+from Modules.Commons import config, SummaryItem, TagInfo
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +27,7 @@ class SummaryCache:
         self.cache_file = cache_file or config.get_cache_file() or "summary_cache.json"
         self.summaries = []
         self.summary_id_dict = {}
+        self.tag_info_dict = {}  # Dictionary to store tag information
         self.lock = asyncio.Lock()  # For thread-safe operations
         self.last_sync_time = None  # Track when the last sync occurred
         
@@ -109,7 +110,12 @@ class SummaryCache:
         try:
             # Run in a thread pool to avoid blocking the event loop
             loop = asyncio.get_event_loop()
-            coda_rows = await loop.run_in_executor(None, self._get_all_coda_rows)
+            
+            # Sync summaries
+            coda_rows = await loop.run_in_executor(None, self._get_all_summary_coda_rows)
+            
+            # Sync tags
+            tag_rows = await loop.run_in_executor(None, self._get_all_tag_rows)
             
             # Convert Coda rows to SummaryItems
             coda_summaries = []
@@ -120,6 +126,17 @@ class SummaryCache:
                         coda_summaries.append(summary_item)
                 except Exception as e:
                     logger.error(f"Error converting Coda row to SummaryItem: {e}")
+            
+            # Convert tag rows to TagInfo objects
+            self.tag_info_dict = {}
+            for row in tag_rows:
+                try:
+                    tag = row.get('Tag', '')
+                    description = row.get('Description', '')
+                    if tag:
+                        self.tag_info_dict[tag] = TagInfo(tag, description)
+                except Exception as e:
+                    logger.error(f"Error converting Coda row to TagInfo: {e}")
             
             # Update local cache with Coda data
             # For each item in Coda, add it to local cache if not present
@@ -137,11 +154,11 @@ class SummaryCache:
             # Update the last sync time
             self.last_sync_time = current_time
             
-            logger.info(f"Synchronized local cache with Coda ({len(coda_summaries)} items)")
+            logger.info(f"Synchronized local cache with Coda ({len(coda_summaries)} items, {len(self.tag_info_dict)} tags)")
         except Exception as e:
             logger.error(f"Error synchronizing with Coda: {e}")
     
-    def _get_all_coda_rows(self) -> List[Dict[str, Any]]:
+    def _get_all_summary_coda_rows(self) -> List[Dict[str, Any]]:
         """Get all rows from Coda table."""
         if not self.coda_enabled:
             return []
@@ -169,6 +186,35 @@ class SummaryCache:
             logger.error(f"Error getting rows from Coda: {e}")
             return []
     
+    def _get_all_tag_rows(self) -> List[Dict[str, Any]]:
+        """Get all rows from Coda tag table."""
+        if not self.coda_enabled:
+            return []
+            
+        try:
+            # Initialize Coda client
+            coda = Coda(self.coda_config.api_key)
+            # Get the doc and table
+            doc = Document(self.coda_config.doc_id, coda=coda)
+            table = doc.get_table(self.coda_config.tag_table_id)
+            
+            # Get all rows
+            rows = table.rows()
+            
+            # Convert rows to dictionaries
+            result = []
+            for row in rows:
+                row_dict = {}
+                for cell in row.cells():
+                    row_dict[cell.column.name] = cell.value
+                result.append(row_dict)
+                
+            return result
+        except Exception as e:
+            logger.error(f"Error getting rows from Coda tag table: {e}")
+            return []
+    
+
     def _add_or_update_coda_row(self, summary_item: SummaryItem) -> bool:
         """Add or update a row in Coda."""
         if not self.coda_enabled:
@@ -348,6 +394,20 @@ class SummaryCache:
             await self._sync_with_coda()
         
         return self.summaries.copy()
+    
+    async def get_tag_info(self) -> Dict[str, TagInfo]:
+        """
+        Get all tag information from Coda.
+        
+        Returns:
+            Dictionary mapping tag names to TagInfo objects
+        """
+        # Sync with Coda to ensure we have the latest data
+        if self.coda_enabled:
+            await self._sync_with_coda()
+        
+        return self.tag_info_dict.copy()
+    
     
 def create_cache() -> SummaryCache:
     """

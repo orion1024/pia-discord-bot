@@ -2,19 +2,21 @@
 import anthropic
 import logging
 import json
-from typing import Dict, List
-from Modules.Commons import ContentItem, SummaryItem, sanitize_for_logging
+import re
+from typing import Dict, Optional
+from Modules.Commons import ContentItem, SummaryItem, sanitize_for_logging, TagInfo
 from Modules.Commons import config
 
 logger = logging.getLogger(__name__)
         
 # Claude summarizer implementation
-async def summarize_with_claude(content_item: ContentItem) -> SummaryItem:
+async def summarize_with_claude(content_item: ContentItem, tag_info: Optional[Dict[str, TagInfo]] = None) -> SummaryItem:
     """
     Summarize content using Claude API.
     
     Args:
         content_item: The ContentItem to summarize
+        tag_info: Optional dictionary of TagInfo objects to help with tagging
         
     Returns:
         A SummaryItem containing the summary and metadata
@@ -38,6 +40,19 @@ async def summarize_with_claude(content_item: ContentItem) -> SummaryItem:
         author = content_item.author
         main_content = content_item.content
        
+        # Prepare tag information if available
+        tag_guidance = ""
+        if tag_info and len(tag_info) > 0:
+            tag_guidance = "Here is additional detailed tag guidance:\n"
+            tag_guidance += "You will find below a list of tags and their description. The content will probably match one or several of them (but not always).\n"
+            tag_guidance += "You can come up with other tags when appropriate, but if they are similar to the ones below, prioritize the latter.\n"
+            tag_guidance += "If people or companies are mentioned in the content in any meaningful way, always include them as tags.\n"
+            for tag, info in tag_info.items():
+                if info.description:
+                    tag_guidance += f"- {tag}: {info.description}\n"
+                else:
+                    tag_guidance += f"- {tag}\n"
+
         prompt = f"""
 I need you to summarize the following YouTube video:
 
@@ -52,7 +67,10 @@ End of content.
 
 Please provide:
 1. A concise summary (from 1 to 4 paragraphs depending on the length of the content) of the main points and key information. This summary MUST be in french, regardless of the content original language.
-2. A list of 5-10 relevant tags or keywords, including the names of people mentioned
+2. A list of 5-10 (not a hard limit, just a general guideline) relevant tags or keywords.
+
+{tag_guidance}
+
 3. Format your response as a JSON object with the following structure:
 {{
   "summary": "Your summary text here in french...",
@@ -79,7 +97,6 @@ Please provide:
         try:
             # Try to extract JSON from the response
             # First, look for JSON block in markdown
-            import re
             json_match = re.search(r'(?:json)?\s*({.*?})\s*', response_content, re.DOTALL)
             
             if json_match:
@@ -112,4 +129,3 @@ Please provide:
     except Exception as e:
         logger.exception(f"Error in Claude summarization: {e}")
         raise RuntimeError(f"Claude summarization failed: {str(e)}")
-

@@ -23,7 +23,8 @@
         "coda": {
             "api_key": "YOUR_CODA_API_KEY",
             "doc_id": "YOUR_CODA_DOC_ID",
-            "table_id": "YOUR_CODA_TABLE_ID"
+            "table_id": "YOUR_CODA_TABLE_ID",
+            "tag_table_id": "YOUR_CODA_TAG_TABLE_ID"
         },
         "discord": {
             "enabled": true
