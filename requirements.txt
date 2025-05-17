@@ -9,3 +9,4 @@ pytubefix>=4.0.0
 youtube_transcript_api>=1.0.3
 anthropic>=0.49.0
 openai>=1.74.0
+codaio>=0.6.12
