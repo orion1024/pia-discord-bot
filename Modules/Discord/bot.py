@@ -241,7 +241,7 @@ class PiaBot(commands.Bot):
                 search_term: The term to search for in tags
             """
             if not hasattr(self, '_summary_retriever'):
-                await ctx.send("Error: Summary retriever not configured")
+                await ctx.message.reply("Error: Summary retriever not configured")
                 return
             
             try:
@@ -249,7 +249,7 @@ class PiaBot(commands.Bot):
                 all_summaries = await self._summary_retriever()
             
                 if not all_summaries:
-                    await ctx.send("No summaries found in the cache.")
+                    await ctx.message.reply("No summaries found in the cache.")
                     return
                 
                 # Filter summaries by tag match (case-insensitive)
@@ -262,7 +262,7 @@ class PiaBot(commands.Bot):
                         matching_summaries.append(summary)
             
                 if not matching_summaries:
-                    await ctx.send(f"No summaries found with tags matching '{search_term}'.")
+                    await ctx.message.reply(f"No summaries found with tags matching '{search_term}'.")
                     return
                 
                 # Format results
@@ -277,18 +277,18 @@ class PiaBot(commands.Bot):
                     tags_str = ", ".join(matching_tags)
                 
                     # Create result line with title and link
-                    result_lines.append(f"{i}. **{summary.title}** - {thread_link} - Tags: {tags_str}")
+                    result_lines.append(f"{i}. **[{summary.title}]({thread_link})** - Tags: {tags_str}")
             
                 # Create response message
                 response = f"**Found {len(matching_summaries)} summaries with tags matching '{search_term}':**\n\n"
                 response += "\n".join(result_lines)
             
                 # Send response
-                await ctx.send(response)
+                await ctx.message.reply(response)
         
             except Exception as e:
                 logger.exception(f"Error searching summaries by tag: {e}")
-                await ctx.send(f"An error occurred while searching: {str(e)}")
+                await ctx.message.reply(f"An error occurred while searching: {str(e)}")
 
         logger.info("Commands registered successfully")
     

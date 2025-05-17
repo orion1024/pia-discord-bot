@@ -4,7 +4,7 @@ import sys
 import logging
 import asyncio
 import signal
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 from Modules.Commons import config, ConfigurationError, ContentItem, SummaryItem
 from Modules.Discord import create_bot, start_bot, PiaBot
@@ -71,6 +71,13 @@ async def setup_bot() -> PiaBot:
         await target_handler.send_to_targets(url, summary, context, summary_item)
     
     bot.set_target_handler(handle_targets)
+    
+    # Connect the summary retriever to the bot
+    async def retrieve_summaries() -> List[SummaryItem]:
+        """Retrieve all summaries from the cache."""
+        return await cache.get_all_summaries()
+    
+    bot.set_summary_retriever(retrieve_summaries)
     
     # Store the bot instance globally for shutdown handling
     global bot_instance
