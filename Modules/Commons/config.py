@@ -9,8 +9,12 @@ class DiscordConfig(BaseModel):
     monitored_channels: List[str]
     command_prefix: str = "!pia"
 
+class YouTubeConfig(BaseModel):
+    api_key: str
+
 class ContentConfig(BaseModel):
     supported_domains: List[str]
+    youtube: YouTubeConfig
 
 class SummarizationConfig(BaseModel):
     provider: str = "claude"

@@ -30,6 +30,9 @@ async def setup_bot() -> PiaBot:
     summarizer = create_summarizer()
     target_handler = create_target_handler()
     cache = create_cache()  # Create the cache
+
+    # TODO : connect a method to retrieve supported URL domains to the bot, from the content processor
+    # Current method is fetching it from config which is not logical
     
     # Connect the content ID extractor to the bot
     async def extract_content_id(url: str) -> Optional[str]:

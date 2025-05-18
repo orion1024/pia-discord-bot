@@ -11,7 +11,10 @@
         "supported_domains": [
             "youtube.com",
             "youtu.be"
-        ]
+        ],
+        "youtube": {
+            "api_key": "YOUR_YOUTUBE_API_KEY"
+        }
     },
     "summarization": {
         "provider": "claude",
@@ -35,6 +38,7 @@
         "file": "pia-discord-bot.log"
     },
     "cache": {
-      "file": "data/summary_cache.json"
+      "file": "data/summary_cache.json",
+      "sync_interval_minutes": 30
     }
 }

@@ -1,18 +1,28 @@
 import logging
+import requests
 from datetime import datetime
 import re
 from typing import Optional, List, Dict, Any, Tuple
 import asyncio
-from pytubefix import YouTube
 from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled, NoTranscriptFound
 
 from Modules import strings
-from Modules.Commons import sanitize_for_logging, ContentItem
+from Modules.Commons import config, sanitize_for_logging, ContentItem
 
 logger = logging.getLogger(__name__)
 
 _PLATFORM_NAME = "YouTube"
 
+def get_youtube_metadata(video_id: str, api_key) -> Dict[str, Any]:
+    url = f"https://www.googleapis.com/youtube/v3/videos"
+    params = {
+        "part": "snippet,contentDetails,statistics",
+        "id": video_id,
+        "key": api_key
+    }
+    
+    response = requests.get(url, params=params)
+    return response.json()
 
 def extract_video_id(url: str) -> Optional[str]:
     """
@@ -56,31 +66,77 @@ async def process_youtube(url: str) -> Optional[ContentItem]:
     logger.info(strings.CONTENT_YOUTUBE_FETCHING)
     
     try:
-            
-        # Run pytube in a thread pool to avoid blocking the event loop
-        def extract_info():
-            yt = YouTube(url, client="WEB")
-            return {
-                "title": yt.title,
-                "author": yt.author,
-                "description": yt.description,
-                "publish_date": yt.publish_date,
-                "length": yt.length,
-                "views": yt.views,
-                "rating": yt.rating,
-                "keywords": yt.keywords,
-                "thumbnail_url": yt.thumbnail_url,
-                "video_id": yt.video_id,
-                "channel_id": yt.channel_id,
-                "channel_url": yt.channel_url,
-            }
+        # Extract video ID from URL
+        video_id = extract_video_id(url)
+        if not video_id:
+            raise ValueError(f"Could not extract video ID from URL: {url}")
         
-        # Run the extraction in a thread pool
-        loop = asyncio.get_event_loop()
-        info = await loop.run_in_executor(None, extract_info)
+        # Remove platform prefix to get the actual YouTube video ID
+        youtube_video_id = video_id.split('/')[-1] if '/' in video_id else video_id
+        
+        
+        # Get API key from config
+        api_key = config.get_content().youtube.api_key
+        if not api_key:
+            raise ValueError("YouTube API key not found in configuration")
+        
+        # Get metadata using YouTube Data API
+        metadata = get_youtube_metadata(youtube_video_id, api_key)
+        
+        if not metadata or 'items' not in metadata or not metadata['items']:
+            raise ValueError(f"Could not fetch metadata for video ID: {youtube_video_id}")
+        
+        # Extract relevant information from the API response
+        video_data = metadata['items'][0]
+        snippet = video_data.get('snippet', {})
+        statistics = video_data.get('statistics', {})
+        content_details = video_data.get('contentDetails', {})
+        
+        # Parse duration from ISO 8601 format (PT1H2M3S) to seconds
+        duration_str = content_details.get('duration', 'PT0S')
+        duration_seconds = 0
+        
+        # Simple parsing of PT1H2M3S format
+        hours = re.search(r'(\d+)H', duration_str)
+        minutes = re.search(r'(\d+)M', duration_str)
+        seconds = re.search(r'(\d+)S', duration_str)
+        
+        if hours:
+            duration_seconds += int(hours.group(1)) * 3600
+        if minutes:
+            duration_seconds += int(minutes.group(1)) * 60
+        if seconds:
+            duration_seconds += int(seconds.group(1))
+        
+        # Format publish date
+        publish_date_str = snippet.get('publishedAt')
+        publish_date = None
+        if publish_date_str:
+            try:
+                publish_date = datetime.fromisoformat(publish_date_str.replace('Z', '+00:00'))
+            except ValueError:
+                publish_date = datetime.now()
+        else:
+            publish_date = datetime.now()
+        
+        # Extract information
+        info = {
+            "title": snippet.get('title', 'Unknown Title'),
+            "author": snippet.get('channelTitle', 'Unknown Author'),
+            "description": snippet.get('description', ''),
+            "publish_date": publish_date,
+            "length": duration_seconds,
+            "views": int(statistics.get('viewCount', 0)),
+            "rating": float(statistics.get('likeCount', 0)) / 100,  # Approximate rating
+            "keywords": snippet.get('tags', []),
+            "thumbnail_url": snippet.get('thumbnails', {}).get('high', {}).get('url', ''),
+            "video_id": youtube_video_id,
+            "channel_id": snippet.get('channelId', ''),
+            "channel_url": f"https://www.youtube.com/channel/{snippet.get('channelId', '')}",
+        }
         
         # Get transcript using youtube_transcript_api
-        transcript_text = await get_transcript(info["video_id"])
+        transcript_text = await get_transcript(youtube_video_id)
 
         full_content = f"===== Video description BEGIN =====\n\n{info['description']}\n\n"
         full_content += f"===== Video description END =====\n\n"
@@ -88,13 +144,10 @@ async def process_youtube(url: str) -> Optional[ContentItem]:
             full_content += f"===== Video transcript BEGIN =====\n\n{transcript_text}\n\n"
             full_content += f"===== Video transcript END =====\n\n"
         
-        # Extract full video ID from URL
-        full_content_id = extract_video_id(url)
-        
         # Create a ContentItem
         content_item = ContentItem(
             type=_PLATFORM_NAME,
-            content_id=full_content_id,
+            content_id=video_id,
             url=url,
             title=info["title"],
             author=info["author"],
@@ -114,10 +167,6 @@ async def process_youtube(url: str) -> Optional[ContentItem]:
                 "channel_url": info["channel_url"]
             }
         )
-        
-
-
-
 
         logger.info(strings.CONTENT_YOUTUBE_FETCHED.format(title=sanitize_for_logging(content_item.title)))
         
