@@ -5,6 +5,7 @@ import re
 from typing import Optional, List, Dict, Any, Tuple
 import asyncio
 from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled, NoTranscriptFound
+from youtube_transcript_api.proxies import GenericProxyConfig
 
 from Modules import strings
 from Modules.Commons import config, sanitize_for_logging, ContentItem
@@ -143,6 +144,9 @@ async def process_youtube(url: str) -> Optional[ContentItem]:
         if transcript_text:
             full_content += f"===== Video transcript BEGIN =====\n\n{transcript_text}\n\n"
             full_content += f"===== Video transcript END =====\n\n"
+        else:
+            logger.error("No transcript available for video: {video_id}. Aborting.")
+            return None
         
         # Create a ContentItem
         content_item = ContentItem(
@@ -190,10 +194,22 @@ async def get_transcript(video_id: str) -> Optional[str]:
         # Run in a thread pool to avoid blocking
         def fetch_transcript():
             # Using the current API pattern from the latest documentation
-            transcript = YouTubeTranscriptApi.list_transcripts(video_id)
+
+            youtube_config = config.get_content().youtube
+            if youtube_config.proxy_enabled:
+                logger.info(f"Proxy enabled, using proxy: {youtube_config.proxy_https_url}")
+                proxy_config = GenericProxyConfig(
+                                    http_url=youtube_config.proxy_http_url,
+                                    https_url=youtube_config.proxy_https_url,
+                                )
+                ytt_api = YouTubeTranscriptApi(proxy_config=proxy_config)
+            else: 
+                ytt_api = YouTubeTranscriptApi()
+            
+            transcript_list = ytt_api.list_transcripts(video_id)
             
             # Try to get the transcript in the default language (usually the original language)
-            default_transcript = transcript.find_transcript(['fr','en'])
+            default_transcript = transcript_list.find_transcript(['fr','en'])
 
             transcript_data = default_transcript.fetch()
 

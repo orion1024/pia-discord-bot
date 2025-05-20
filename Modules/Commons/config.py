@@ -11,6 +11,9 @@ class DiscordConfig(BaseModel):
 
 class YouTubeConfig(BaseModel):
     api_key: str
+    proxy_enabled: bool = False
+    proxy_http_url: str = ""
+    proxy_https_url: str = ""
 
 class ContentConfig(BaseModel):
     supported_domains: List[str]
