@@ -55,11 +55,17 @@ class PiaBot(commands.Bot):
         @self.command(name="ping", help="Check if the bot is responsive")
         async def ping(ctx):
             """Simple command to check if the bot is responsive."""
-            await ctx.send("Pong! I'm here and listening.")
+            if not (isinstance(ctx.channel, discord.DMChannel) or ctx.channel.id in self.monitored_channel_ids):
+                return
             
-        @self.command(name="channels", help="List monitored channels")
+            await ctx.message.reply("Pong! I'm here and listening.")
+            
+        @self.command(name="channels", help="List monitored channels [PM only]")
         async def channels(ctx):
             """List the channels being monitored by the bot."""
+            if not isinstance(ctx.channel, discord.DMChannel):
+                await ctx.message.reply("Cette commande peut être utilisée uniquement dans un message privé au bot.")
+                return
             channel_list = []
             for channel_id in self.monitored_channel_ids:
                 channel = self.get_channel(channel_id)
@@ -73,26 +79,41 @@ class PiaBot(commands.Bot):
             else:
                 await ctx.send("I'm not monitoring any channels.")
         
-        @self.command(name="scan", help="Scan channel messages for links (days_back: int)")
+        @self.command(name="scan", help="Scan channel messages for links (days_back: int) [Admin only]")
         async def scan(ctx, days_back: int):
             """Scan channel messages for the specified number of days back."""
-            if days_back <= 0:
-                await ctx.send("Please provide a positive number of days to scan.")
+            if not (ctx.channel.id in self.monitored_channel_ids):
                 return
             
-            await ctx.send(f"Starting to scan messages from the last {days_back} days in this channel...")
+            if not await self._check_moderator_permissions(ctx):
+                await ctx.message.reply("You don't have permission to use this command.")
+                return
+            
+            if days_back <= 0:
+                await ctx.message.reply("Please provide a positive number of days to scan.")
+                return
+            
+            await ctx.message.reply(f"Starting to scan messages from the last {days_back} days in this channel...")
         
             # Call the placeholder method that will handle the scanning logic
             scan_results = await self._scan_channel_messages(ctx.channel, days_back)
         
             # Reply with results
-            await ctx.send(f"Scan complete! Messages scanned: {scan_results['scanned']}, "
+            await ctx.message.reply(f"Scan complete! Messages scanned: {scan_results['scanned']}, "
                           f"Already processed: {scan_results['processed']}, "
                           f"Not yet processed: {scan_results['not_processed']}")
         
-        @self.command(name="queue", help="Display information about unprocessed URLs")
+        @self.command(name="queue", help="Display information about unprocessed URLs [PM only, Admin only]")
         async def queue(ctx):
             """Display information about unprocessed URLs from the local file."""
+            if not isinstance(ctx.channel, discord.DMChannel):
+                await ctx.message.reply("Cette commande peut être utilisée uniquement dans un message privé au bot.")
+                return
+            
+            if not await self._check_moderator_permissions(ctx):
+                await ctx.message.reply("You don't have permission to use this command.")
+                return
+            
             try:
                 # Check if the unprocessed URLs file exists
                 filename = "data/unprocessed_urls.json"
@@ -140,7 +161,7 @@ class PiaBot(commands.Bot):
                 logger.exception(f"Error displaying queue: {e}")
                 await ctx.send(f"An error occurred while retrieving the queue: {str(e)}")
         
-        @self.command(name="process", help="Process unprocessed URLs from the queue")
+        @self.command(name="process", help="Process unprocessed URLs from the queue [Private message only, Permission needed]")
         async def process_queue(ctx, limit: int = 5):
             """
             Process unprocessed URLs from the queue.
@@ -148,11 +169,19 @@ class PiaBot(commands.Bot):
             Args:
                 limit: Maximum number of URLs to process (default: 5)
             """
+            if not isinstance(ctx.channel, discord.DMChannel):
+                await ctx.message.reply("Cette commande peut être utilisée uniquement dans un message privé au bot.")
+                return
+            
+            if not await self._check_moderator_permissions(ctx):
+                await ctx.message.reply("You don't have permission to use this command.")
+                return
+            
             try:
                 # Check if the unprocessed URLs file exists
                 filename = "data/unprocessed_urls.json"
                 if not os.path.exists(filename):
-                    await ctx.message.reply("No unprocessed URLs found.")
+                    await ctx.send("No unprocessed URLs found.")
                     return
                 
                 # Load unprocessed URLs from file
@@ -160,7 +189,7 @@ class PiaBot(commands.Bot):
                     unprocessed_urls = json.load(f)
                 
                 if not unprocessed_urls:
-                    await ctx.message.reply("No unprocessed URLs in queue.")
+                    await ctx.send("No unprocessed URLs in queue.")
                     return
                 
                 # Limit the number of URLs to process
@@ -168,7 +197,7 @@ class PiaBot(commands.Bot):
             
                 # Send an initial feedback message that we'll update
                 feedback_content = "Starting to process URLs from the queue...\n\n"
-                feedback_message = await ctx.message.reply(feedback_content, suppress_embeds=True)
+                feedback_message = await ctx.send(feedback_content, suppress_embeds=True)
                 
                 # Process each URL
                 processed_indices = []
@@ -230,9 +259,9 @@ class PiaBot(commands.Bot):
             
             except Exception as e:
                 logger.exception(f"Error processing queue: {e}")
-                await ctx.message.reply(f"An error occurred while processing the queue: {str(e)}")
+                await ctx.send(f"An error occurred while processing the queue: {str(e)}")
                 
-        @self.command(name="search", help="Search for summaries by tag (search_term: str)")
+        @self.command(name="search", help="Search for summaries by tag (search_term: str) [Private message only]")
         async def search_by_tag(ctx, *, search_term: str):
             """
             Search for summaries that have tags matching the given search term.
@@ -240,16 +269,20 @@ class PiaBot(commands.Bot):
             Args:
                 search_term: The term to search for in tags
             """
-            if not hasattr(self, '_summary_retriever'):
-                await ctx.message.reply("Error: Summary retriever not configured")
+            if not isinstance(ctx.channel, discord.DMChannel):
+                await ctx.message.reply("Cette commande peut être utilisée uniquement dans un message privé au bot.")
                 return
             
+            if not hasattr(self, '_summary_retriever'):
+                await ctx.send("Error: Summary retriever not configured")
+                return
+            await ctx.send(f"Recherche de threads avec des tags contenant `{search_term}`...")
             try:
                 # Get all summaries
                 all_summaries = await self._summary_retriever()
             
                 if not all_summaries:
-                    await ctx.message.reply("Aucun thread trouvé.")
+                    await ctx.send("Aucun thread trouvé.")
                     return
                 
                 # Filter summaries by tag match (case-insensitive)
@@ -262,33 +295,33 @@ class PiaBot(commands.Bot):
                         matching_summaries.append(summary)
             
                 if not matching_summaries:
-                    await ctx.message.reply(f"Aucun thread ne correspond à '{search_term}'.")
+                    await ctx.send(f"Aucun thread ne correspond à '{search_term}'.")
                     return
                 
                 # Format results
                 result_lines = []
                 for i, summary in enumerate(matching_summaries, 1):
                     # Extract thread ID from thread URL
-                    thread_id = summary.thread_url.split('/')[-1] if summary.thread_url else "Unknown"
-                    thread_link = f"<https://discord.com/channels/{ctx.guild.id}/{thread_id}>"
+                    # thread_id = summary.thread_url.split('/')[-1] if summary.thread_url else "Unknown"
+                    # thread_link = f"<https://discord.com/channels/{ctx.guild.id}/{thread_id}>"
                 
                     # Format matching tags
                     matching_tags = [f"`{tag}`" for tag in summary.tags if search_term in tag.lower()]
                     tags_str = ", ".join(matching_tags)
                 
                     # Create result line with title and link
-                    result_lines.append(f"{i}. **[{summary.title}]({thread_link})** - Tags: {tags_str}")
+                    result_lines.append(f"{i}. **[{summary.title}]({summary.thread_url})** - Tags: {tags_str}")
             
                 # Create response message
-                response = f"**{len(matching_summaries)} threads trouvés avec des tags correspondant à '{search_term}':**\n\n"
+                response = f"**{len(matching_summaries)} thread(s) trouvé(s) :**\n\n"
                 response += "\n".join(result_lines)
             
                 # Send response
-                await ctx.message.reply(response)
+                await ctx.send(response)
         
             except Exception as e:
                 logger.exception(f"Error searching summaries by tag: {e}")
-                await ctx.message.reply(f"Erreur pendant la recherche: {str(e)}")
+                await ctx.send(f"Erreur pendant la recherche: {str(e)}")
 
         logger.info("Commands registered successfully")
     
@@ -450,7 +483,7 @@ class PiaBot(commands.Bot):
         # Ignore messages from the bot itself
         if message.author == self.user:
             return
-            
+    
         # Process commands first
         await self.process_commands(message)
         
@@ -768,6 +801,33 @@ class PiaBot(commands.Bot):
             "not_processed": not_processed
         }
 
+    async def _check_moderator_permissions(self, ctx) -> bool:
+        """
+        Check if the user has moderator permissions in the channel.
+        
+        Args:
+            ctx: The command context
+        
+        Returns:
+            True if the user has moderator permissions, False otherwise
+        """
+        # # Check if the user is the server owner
+        # if ctx.guild and ctx.author == ctx.guild.owner:
+        #     return True
+        
+        # # Check if the user has administrator permissions
+        # if ctx.guild and ctx.author.guild_permissions.administrator:
+        #     return True
+        
+        # # Check if the user has manage_messages permission (common moderator permission)
+        # if ctx.guild and ctx.author.permissions_in(ctx.channel).manage_messages:
+        #     return True
+        
+        # User doesn't have moderator permissions
+        # logger.info(f"User {ctx.author.name} ({ctx.author.id}) attempted to use a moderator command without permissions")
+        # Temporary
+        # return False
+        return ctx.author.id == 909150160888664094
 
             
 def create_bot() -> PiaBot:
