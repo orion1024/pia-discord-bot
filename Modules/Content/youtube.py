@@ -198,11 +198,10 @@ async def get_transcript(video_id: str) -> Optional[str]:
             youtube_config = config.get_content().youtube
             if youtube_config.proxy_enabled:
                 logger.info(f"Proxy enabled, using proxy: {youtube_config.proxy_https_url}")
-                proxy_config = GenericProxyConfig(
-                                    http_url=youtube_config.proxy_http_url,
+                proxy_object = GenericProxyConfig(
                                     https_url=youtube_config.proxy_https_url,
                                 )
-                ytt_api = YouTubeTranscriptApi(proxy_config=proxy_config)
+                ytt_api = YouTubeTranscriptApi(proxy_config=proxy_object)
             else: 
                 ytt_api = YouTubeTranscriptApi()
             
