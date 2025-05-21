@@ -205,7 +205,7 @@ async def get_transcript(video_id: str) -> Optional[str]:
             else: 
                 ytt_api = YouTubeTranscriptApi()
             
-            transcript_list = ytt_api.list_transcripts(video_id)
+            transcript_list = ytt_api.list(video_id)
             
             # Try to get the transcript in the default language (usually the original language)
             default_transcript = transcript_list.find_transcript(['fr','en'])
