@@ -12,8 +12,8 @@ CODA_TABLE_UPDATED = "Table Coda mise à jour avec le résumé pour {url}"
 CODA_ERROR_UPDATING = "Erreur lors de la mise à jour de la table Coda: {error}"
 
 # Content messages
-CONTENT_YOUTUBE_FETCHING = "Récupération des informations de la vidéo YouTube..."
-CONTENT_YOUTUBE_FETCHED = "Informations récupérées pour la vidéo YouTube: {title}"
+CONTENT_FETCHING = "Récupération des informations..."
+CONTENT_FETCHED = "Informations récupérées."
 
 # Summarization messages
 SUMMARIZATION_PROCESSING = "Traitement du contenu pour la génération du résumé..."

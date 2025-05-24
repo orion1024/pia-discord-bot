@@ -1,9 +1,11 @@
 import logging
+
 import requests
 from datetime import datetime
 import re
 from typing import Optional, List, Dict, Any, Tuple
 import asyncio
+import random
 from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled, NoTranscriptFound
 from youtube_transcript_api.proxies import GenericProxyConfig
 
@@ -64,7 +66,7 @@ async def process_youtube(url: str) -> Optional[ContentItem]:
     Raises:
         RuntimeError: If processing fails
     """
-    logger.info(strings.CONTENT_YOUTUBE_FETCHING)
+    logger.info(strings.CONTENT_FETCHING)
     
     try:
         # Extract video ID from URL
@@ -145,7 +147,7 @@ async def process_youtube(url: str) -> Optional[ContentItem]:
             full_content += f"===== Video transcript BEGIN =====\n\n{transcript_text}\n\n"
             full_content += f"===== Video transcript END =====\n\n"
         else:
-            logger.error("No transcript available for video: {video_id}. Aborting.")
+            logger.error("No transcript available for video: {youtube_video_id}. Aborting.")
             return None
         
         # Create a ContentItem
@@ -172,13 +174,14 @@ async def process_youtube(url: str) -> Optional[ContentItem]:
             }
         )
 
-        logger.info(strings.CONTENT_YOUTUBE_FETCHED.format(title=sanitize_for_logging(content_item.title)))
+        logger.info(strings.CONTENT_FETCHED.format(title=sanitize_for_logging(content_item.title)))
         
         return content_item
         
     except Exception as e:
         logger.exception(f"Error processing YouTube URL {url}: {e}")
         raise RuntimeError(f"Failed to process YouTube URL: {str(e)}")
+
 
 async def get_transcript(video_id: str) -> Optional[str]:
     """
@@ -190,41 +193,51 @@ async def get_transcript(video_id: str) -> Optional[str]:
     Returns:
         The transcript text, or None if no transcript is available
     """
-    try:
-        # Run in a thread pool to avoid blocking
-        def fetch_transcript():
-            # Using the current API pattern from the latest documentation
-
-            youtube_config = config.get_content().youtube
-            if youtube_config.proxy_enabled:
-                logger.info(f"Proxy enabled, using proxy: {youtube_config.proxy_https_url}")
-                proxy_object = GenericProxyConfig(
-                                    https_url=youtube_config.proxy_https_url,
-                                )
-                ytt_api = YouTubeTranscriptApi(proxy_config=proxy_object)
-            else: 
-                ytt_api = YouTubeTranscriptApi()
-            
-            transcript_list = ytt_api.list(video_id)
-            
-            # Try to get the transcript in the default language (usually the original language)
-            default_transcript = transcript_list.find_transcript(['fr','en'])
-
-            transcript_data = default_transcript.fetch()
-
-            # Join all transcript segments into a single string
-            return "\n".join([entry.text for entry in transcript_data])
-            
-        loop = asyncio.get_event_loop()
-        transcript = await loop.run_in_executor(None, fetch_transcript)
-        return transcript
+    youtube_config = config.get_content().youtube
+    max_retries = youtube_config.transcript_max_retries if hasattr(youtube_config, 'transcript_max_retries') else 3
+    retry_delay = youtube_config.transcript_retry_delay if hasattr(youtube_config, 'transcript_retry_delay') else 2
+    
+    # Will be run in a thread pool to avoid blocking
+    def fetch_transcript():
+        # Using the current API pattern from the latest documentation
+        if youtube_config.proxy_enabled and youtube_config.proxy_urls:
+            # Randomly select one proxy from the list
+            selected_proxy = random.choice(youtube_config.proxy_urls)
+            logger.info(f"Proxy enabled, using proxy: {selected_proxy}")
+            proxy_object = GenericProxyConfig(
+                https_url=selected_proxy,
+            )
+            ytt_api = YouTubeTranscriptApi(proxy_config=proxy_object)
+        else: 
+            ytt_api = YouTubeTranscriptApi()
         
-    except NoTranscriptFound:
-        logger.info(f"No transcript available for video {video_id}")
-        return None
-    except TranscriptsDisabled:
-        logger.info(f"Transcripts are disabled for video {video_id}")
-        return None
-    except Exception as e:
-        logger.warning(f"Error fetching transcript for video {video_id}: {e}")
-        return None
+        transcript_list = ytt_api.list(video_id)
+        
+        # Try to get the transcript in the default language (usually the original language)
+        default_transcript = transcript_list.find_transcript(['fr','en'])
+        transcript_data = default_transcript.fetch()
+
+        # Join all transcript segments into a single string
+        return "\n".join([entry.text for entry in transcript_data])
+    
+    for attempt in range(max_retries):
+        try:
+            loop = asyncio.get_event_loop()
+            transcript = await loop.run_in_executor(None, fetch_transcript)
+            return transcript
+            
+        except NoTranscriptFound:
+            logger.info(f"No transcript available for video {video_id}")
+            return None
+        except TranscriptsDisabled:
+            logger.info(f"Transcripts are disabled for video {video_id}")
+            return None
+        except Exception as e:
+            if attempt < max_retries - 1:
+                retry_msg = f"Error fetching transcript for video {video_id} (attempt {attempt+1}/{max_retries}): {e}"
+                retry_msg += f" - Retrying in {retry_delay} seconds..."
+                logger.warning(retry_msg)
+                await asyncio.sleep(retry_delay)
+            else:
+                logger.warning(f"Error fetching transcript for video {video_id} after {max_retries} attempts: {e}")
+                return None

@@ -612,6 +612,7 @@ class PiaBot(commands.Bot):
             new_thread_needed = hasattr(message, 'thread') and message.thread
             if new_thread_needed:
                 thread = message.thread
+                await thread.send(strings.CONTENT_FETCHING)
             else:
                 thread = await self._create_thread(url, message)
         
@@ -622,14 +623,13 @@ class PiaBot(commands.Bot):
                 await thread.send("Error: Content processor not configured")
                 raise RuntimeError("Content processor not configured")
                 
-            await thread.send(strings.CONTENT_YOUTUBE_FETCHING)
             content_item = await self._content_processor(url)
             
             if not content_item:
                 await thread.send(f"Could not fetch content from {url}")
                 raise ValueError(f"Could not fetch content from {url}")
                 
-            await thread.send(strings.DISCORD_CONTENT_FETCHED.format(type=content_item.type))
+            # await thread.send(strings.DISCORD_CONTENT_FETCHED.format(type=content_item.type))
             
             # Summarize content
             if not self._summarizer:
@@ -637,7 +637,7 @@ class PiaBot(commands.Bot):
                 await thread.send("Error: Summarizer not configured")
                 raise RuntimeError("Summarizer not configured")
                 
-            await thread.send(strings.SUMMARIZATION_PROCESSING)
+            # await thread.send(strings.SUMMARIZATION_PROCESSING)
             summary = await self._summarizer(content_item, thread.jump_url)
             
             
@@ -648,7 +648,7 @@ class PiaBot(commands.Bot):
             formatted_summary = format_summary_for_discord(summary)
             if not new_thread_needed:
                 await thread.edit(name=f"Discussion : {content_item.title}", locked=False)
-            await thread.send(strings.SUMMARIZATION_COMPLETE)
+            # await thread.send(strings.SUMMARIZATION_COMPLETE)
             
             # Send to targets, including Discord
             if not self._target_handler:

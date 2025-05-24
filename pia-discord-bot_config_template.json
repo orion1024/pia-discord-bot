@@ -15,8 +15,13 @@
         "youtube": {
             "api_key": "YOUR_YOUTUBE_API_KEY",
             "proxy_enabled": false,
-            "proxy_http_url": "http://localhost:8000",
-            "proxy_https_url": "https://localhost:8000"
+            "proxy_urls": [
+                "https://proxy1.example.com:8000",
+                "https://proxy2.example.com:8000",
+                "https://proxy3.example.com:8000"
+            ],
+            "transcript_max_retries": 3,
+            "transcript_retry_delay": 2
         }
     },
     "summarization": {

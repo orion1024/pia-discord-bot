@@ -12,8 +12,9 @@ class DiscordConfig(BaseModel):
 class YouTubeConfig(BaseModel):
     api_key: str
     proxy_enabled: bool = False
-    proxy_http_url: str = ""
-    proxy_https_url: str = ""
+    proxy_urls: List[str] = Field(default_factory=list)  # New field for list of proxies
+    transcript_max_retries: int = 3  # Default to 3 retries
+    transcript_retry_delay: int = 2  # Default to 2 seconds between retries
 
 class ContentConfig(BaseModel):
     supported_domains: List[str]
