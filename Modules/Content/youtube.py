@@ -141,13 +141,14 @@ async def process_youtube(url: str) -> Optional[ContentItem]:
         # Get transcript using youtube_transcript_api
         transcript_text = await get_transcript(youtube_video_id)
 
-        full_content = f"===== Video description BEGIN =====\n\n{info['description']}\n\n"
-        full_content += f"===== Video description END =====\n\n"
-
+        
         if transcript_text is None:
             logger.error("Error getting transcript for video: {youtube_video_id}. Aborting.")
             return None
         
+        full_content = f"===== Video description BEGIN =====\n\n{info['description']}\n\n"
+        full_content += f"===== Video description END =====\n\n"
+
         if transcript_text:
             full_content += f"===== Video transcript BEGIN =====\n\n{transcript_text}\n\n"
             full_content += f"===== Video transcript END =====\n\n"
@@ -230,10 +231,10 @@ async def get_transcript(video_id: str) -> Optional[str]:
             
         except NoTranscriptFound:
             logger.info(f"No transcript available for video {video_id}")
-            return None
+            return ""
         except TranscriptsDisabled:
             logger.info(f"Transcripts are disabled for video {video_id}")
-            return None
+            return ""
         except Exception as e:
             if attempt < max_retries - 1:
                 retry_msg = f"Error fetching transcript for video {video_id} (attempt {attempt+1}/{max_retries}): {e}"
