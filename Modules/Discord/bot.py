@@ -232,16 +232,17 @@ class PiaBot(commands.Bot):
                         
                         summary = await self._process_url(url, message)
 
+                        # Mark as processed
+                        processed_indices.append(i)
+                        success_count += 1
+                        
                         if summary:
                             feedback_content += f"✅ Successfully processed content: {summary.title}\n"
-                             # Mark as processed
-                            processed_indices.append(i)
-                            success_count += 1
-                            feedback_content += f"✅ Successfully processed content: {summary.title}\n"
-                            await feedback_message.edit(content=feedback_content, suppress=True)
                         else:
                             # If _process_url returns None, it means the content has already been processed
                             feedback_content += f"✅ Already processed, skipped it.\n"
+                        
+                        await feedback_message.edit(content=feedback_content, suppress=True)
                     
                     except Exception as e:
                         logger.exception(f"Error processing URL {url}: {e}")
@@ -629,14 +630,13 @@ class PiaBot(commands.Bot):
             return
         else:
             # Retrieve the existing thread or create a new one if none exists
-            new_thread_needed = hasattr(message, 'thread') and message.thread
-            if not new_thread_needed:
+            existing_thread = hasattr(message, 'thread') and message.thread
+            if existing_thread:
                 thread = message.thread
                 await thread.send(strings.CONTENT_FETCHING)
                 #  If existing thread, if the name is still the default one, it needs to be renamed
                 default_thread_name = self._generate_default_thread_name(url)
                 thread_rename_needed = thread.name == default_thread_name
-                
             else:
                 thread_rename_needed = True
                 thread = await self._create_thread(url, message)
