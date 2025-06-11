@@ -141,17 +141,14 @@ async def process_youtube(url: str) -> Optional[ContentItem]:
         # Get transcript using youtube_transcript_api
         transcript_text = await get_transcript(youtube_video_id)
 
-        
-        if transcript_text is None:
-            logger.error("Error getting transcript for video: {youtube_video_id}. Aborting.")
-            return None
-        
         full_content = f"===== Video description BEGIN =====\n\n{info['description']}\n\n"
         full_content += f"===== Video description END =====\n\n"
 
         if transcript_text:
             full_content += f"===== Video transcript BEGIN =====\n\n{transcript_text}\n\n"
             full_content += f"===== Video transcript END =====\n\n"
+        else:
+            logger.error("Error getting transcript for video: {youtube_video_id}. Skipping transcript section.")
         
         # Create a ContentItem
         content_item = ContentItem(

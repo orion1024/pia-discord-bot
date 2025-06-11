@@ -15,6 +15,8 @@ class PiaBot(commands.Bot):
     Handles connection to Discord and message processing.
     """
     
+    THREAD_NAME_LIMIT = 100
+
     def __init__(self):
         """Initialize the Discord bot with required intents and command prefix."""
         intents = discord.Intents.default()
@@ -416,6 +418,28 @@ class PiaBot(commands.Bot):
         # No duplicate found or thread not accessible
         return None
 
+    def _generate_default_thread_name(self, url: str) -> str:
+        """
+        Create a thread name from a URL.
+
+        Args:
+            url: The URL to create a thread name from
+    
+        Returns:
+            A formatted thread name
+        """
+        # Extract domain for better thread naming
+        domain_match = re.search(r'https?://(?:www\.)?([^/]+)', url)
+        domain = domain_match.group(1) if domain_match else "link"
+
+        # Limit thread name length
+        max_length = self.THREAD_NAME_LIMIT
+        thread_name = f"Discussion: {domain} - {url[:max_length-15]}"
+        if len(thread_name) > max_length:
+            thread_name = thread_name[:max_length-3] + "..."
+    
+        return thread_name
+    
     async def _create_thread(self, url: str, message: discord.Message) -> discord.Thread:
         """
         Create a new thread for a URL.
@@ -427,17 +451,8 @@ class PiaBot(commands.Bot):
         Returns:
             The created thread
         """
-        # Create a thread name from the URL
-        # Extract domain for better thread naming
-        domain_match = re.search(r'https?://(?:www\.)?([^/]+)', url)
-        domain = domain_match.group(1) if domain_match else "link"
         
-        # Limit thread name length
-        max_name_length = 100  # Discord's limit
-        thread_name = f"Discussion: {domain} - {url[:max_name_length-15]}"
-        if len(thread_name) > max_name_length:
-            thread_name = thread_name[:max_name_length-3] + "..."
-        
+        thread_name = self._generate_default_thread_name(url)
         # Create the thread
         thread = await message.create_thread(name=thread_name)
         
@@ -599,10 +614,10 @@ class PiaBot(commands.Bot):
             raise ValueError(f"Could not extract content ID from URL: {url}")
         
         # Check for duplicates
-        existing_thread = await self._check_duplicate_by_content_id(content_id)
-        if existing_thread:
+        processed_thread = await self._check_duplicate_by_content_id(content_id)
+        if processed_thread:
             # Notify about duplicate
-            thread_url = f"https://discord.com/channels/{message.guild.id}/{existing_thread.id}"
+            thread_url = f"https://discord.com/channels/{message.guild.id}/{processed_thread.id}"
             await message.reply(
                 strings.DISCORD_DUPLICATE_DETECTED.format(thread_url=thread_url)
             )
@@ -610,11 +625,17 @@ class PiaBot(commands.Bot):
         else:
             # Retrieve the existing thread or create a new one if none exists
             new_thread_needed = hasattr(message, 'thread') and message.thread
-            if new_thread_needed:
+            if not new_thread_needed:
                 thread = message.thread
                 await thread.send(strings.CONTENT_FETCHING)
+                #  If existing thread, if the name is still the default one, it needs to be renamed
+                default_thread_name = self._generate_default_thread_name(url)
+                thread_rename_needed = thread.name == default_thread_name
+                
             else:
+                thread_rename_needed = True
                 thread = await self._create_thread(url, message)
+               
         
         try:
             # Fetch content
@@ -646,10 +667,12 @@ class PiaBot(commands.Bot):
                 raise ValueError("Could not generate summary")
             
             formatted_summary = format_summary_for_discord(summary)
-            if not new_thread_needed:
-                await thread.edit(name=f"Discussion : {content_item.title}", locked=False)
-            # await thread.send(strings.SUMMARIZATION_COMPLETE)
+            if thread_rename_needed:
+                new_thread_name = f"Discussion : {content_item.title}"[:self.THREAD_NAME_LIMIT]  # Limit to Discord thread name length
+                await thread.edit(name=new_thread_name, locked=False)
             
+            
+            # TODO : check limit on message length (2000 chars)
             # Send to targets, including Discord
             if not self._target_handler:
                 logger.error("Target handler not set")
@@ -665,7 +688,6 @@ class PiaBot(commands.Bot):
             await thread.send(strings.DISCORD_ERROR_FETCHING.format(url=url, error=str(e)))
             # Re-raise the exception for the queue processor to handle
             raise
-
     async def _scan_channel_messages(self, channel, days_back: int) -> dict:
         """
         Scan messages in a channel for supported links.
@@ -828,7 +850,6 @@ class PiaBot(commands.Bot):
         # Temporary
         # return False
         return ctx.author.id == 909150160888664094
-
             
 def create_bot() -> PiaBot:
     """
