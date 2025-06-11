@@ -231,12 +231,17 @@ class PiaBot(commands.Bot):
                         await feedback_message.edit(content=feedback_content, suppress=True)
                         
                         summary = await self._process_url(url, message)
-                    
-                        # Mark as processed
-                        processed_indices.append(i)
-                        success_count += 1
-                        feedback_content += f"✅ Successfully processed content: {summary.title}\n"
-                        await feedback_message.edit(content=feedback_content, suppress=True)
+
+                        if summary:
+                            feedback_content += f"✅ Successfully processed content: {summary.title}\n"
+                             # Mark as processed
+                            processed_indices.append(i)
+                            success_count += 1
+                            feedback_content += f"✅ Successfully processed content: {summary.title}\n"
+                            await feedback_message.edit(content=feedback_content, suppress=True)
+                        else:
+                            # If _process_url returns None, it means the content has already been processed
+                            feedback_content += f"✅ Already processed, skipped it.\n"
                     
                     except Exception as e:
                         logger.exception(f"Error processing URL {url}: {e}")
