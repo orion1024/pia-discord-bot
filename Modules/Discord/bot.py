@@ -227,8 +227,16 @@ class PiaBot(commands.Bot):
                                 continue
                     
                         # Process the URL
-                        feedback_content += f"Processing URL {i+1}/{len(urls_to_process)}: {url}\n"
-                        await feedback_message.edit(content=feedback_content, suppress=True)
+                        new_content += f"Processing URL {i+1}/{len(urls_to_process)}: {url}\n"
+                        # TODO : check limit on message length (2000 chars)
+                        if (len(new_content) + len(feedback_content)) < 2000:
+                            feedback_content += new_content
+                            await feedback_message.edit(content=feedback_content, suppress=True)
+                        else:
+                            # If we exceed the limit, start a new message
+                            feedback_content = new_content
+                            feedback_message = await ctx.send(feedback_content, suppress_embeds=True)
+                            
                         
                         summary = await self._process_url(url, message)
 
@@ -237,17 +245,29 @@ class PiaBot(commands.Bot):
                         success_count += 1
                         
                         if summary:
-                            feedback_content += f"✅ Successfully processed content: {summary.title}\n"
+                            new_content += f"✅ Successfully processed content: {summary.title}\n"
                         else:
                             # If _process_url returns None, it means the content has already been processed
-                            feedback_content += f"✅ Already processed, skipped it.\n"
+                            new_content += f"✅ Already processed, skipped it.\n"
                         
-                        await feedback_message.edit(content=feedback_content, suppress=True)
+                        if (len(new_content) + len(feedback_content)) < 2000:
+                            feedback_content += new_content
+                            await feedback_message.edit(content=feedback_content, suppress=True)
+                        else:
+                            # If we exceed the limit, start a new message
+                            feedback_content = new_content
+                            feedback_message = await ctx.send(feedback_content, suppress_embeds=True)
                     
                     except Exception as e:
                         logger.exception(f"Error processing URL {url}: {e}")
-                        feedback_content += f"❌ Error processing URL {url}: {str(e)}\n"
-                        await feedback_message.edit(content=feedback_content, suppress=True)
+                        new_content += f"❌ Error processing URL {url}: {str(e)}\n"
+                        if (len(new_content) + len(feedback_content)) < 2000:
+                            feedback_content += new_content
+                            await feedback_message.edit(content=feedback_content, suppress=True)
+                        else:
+                            # If we exceed the limit, start a new message
+                            feedback_content = new_content
+                            feedback_message = await ctx.send(feedback_content, suppress_embeds=True)
                         error_count += 1
             
                 # Remove processed URLs from the file
@@ -677,7 +697,6 @@ class PiaBot(commands.Bot):
                 await thread.edit(name=new_thread_name, locked=False)
             
             
-            # TODO : check limit on message length (2000 chars)
             # Send to targets, including Discord
             if not self._target_handler:
                 logger.error("Target handler not set")

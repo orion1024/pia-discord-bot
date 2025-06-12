@@ -100,8 +100,29 @@ async def send_to_discord(url: str, summary: str, context: Dict[str, Any], summa
         raise ValueError("Discord context must contain a valid thread")
     
     try:               
-        # Send the summary to the thread
-        await thread.send(summary)
+            # Send the summary to the thread
+            # Split on newlines first, then chunk if needed
+            lines = summary.split('\n')
+            chunks = []
+            current_chunk = ''
+        
+            for line in lines:
+                # Check if adding this line would exceed Discord's limit
+                if len(current_chunk) + len(line) + 1 <= 2000:
+                    current_chunk = current_chunk + line + '\n' if current_chunk else line
+                else:
+                    # Current chunk is full, start a new one
+                    chunks.append(current_chunk.rstrip())
+                    current_chunk = line
+        
+            # Add the last chunk if not empty
+            if current_chunk:
+                chunks.append(current_chunk.rstrip())
+        
+            # Send each chunk
+            for chunk in chunks:
+                await thread.send(chunk)        
+        # await thread.send(summary)
         
     except Exception as e:
         logger.exception(f"Error sending summary to Discord: {e}")
