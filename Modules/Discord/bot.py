@@ -227,7 +227,7 @@ class PiaBot(commands.Bot):
                                 continue
                     
                         # Process the URL
-                        new_content += f"Processing URL {i+1}/{len(urls_to_process)}: {url}\n"
+                        new_content = f"Processing URL {i+1}/{len(urls_to_process)}: {url}\n"
                         # TODO : check limit on message length (2000 chars)
                         if (len(new_content) + len(feedback_content)) < 2000:
                             feedback_content += new_content
@@ -245,10 +245,10 @@ class PiaBot(commands.Bot):
                         success_count += 1
                         
                         if summary:
-                            new_content += f"✅ Successfully processed content: {summary.title}\n"
+                            new_content = f"✅ Successfully processed content: {summary.title}\n"
                         else:
                             # If _process_url returns None, it means the content has already been processed
-                            new_content += f"✅ Already processed, skipped it.\n"
+                            new_content = f"✅ Already processed, skipped it.\n"
                         
                         if (len(new_content) + len(feedback_content)) < 2000:
                             feedback_content += new_content
@@ -260,7 +260,7 @@ class PiaBot(commands.Bot):
                     
                     except Exception as e:
                         logger.exception(f"Error processing URL {url}: {e}")
-                        new_content += f"❌ Error processing URL {url}: {str(e)}\n"
+                        new_content = f"❌ Error processing URL {url}: {str(e)}\n"
                         if (len(new_content) + len(feedback_content)) < 2000:
                             feedback_content += new_content
                             await feedback_message.edit(content=feedback_content, suppress=True)
