@@ -640,6 +640,7 @@ class PiaBot(commands.Bot):
         
         # Check for duplicates
         processed_thread = await self._check_duplicate_by_content_id(content_id)
+        previous_bot_messages = None
         if processed_thread:
             # Notify about duplicate
             thread_url = f"https://discord.com/channels/{message.guild.id}/{processed_thread.id}"
