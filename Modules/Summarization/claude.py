@@ -3,7 +3,7 @@ import anthropic
 import logging
 import json
 import re
-import time
+import asyncio
 from typing import Dict, Optional
 from Modules.Commons import ContentItem, SummaryItem, sanitize_for_logging, TagInfo
 from Modules.Commons import config
@@ -99,13 +99,13 @@ Please provide:
             except Exception as e:
                 # Claude sends 529 errors when service is overloaded. We only retry those errors.
                 overload_error = "529" in str(e)
-                if overload_error and attempt == retries - 1:  # Last attempt
+                if not overload_error or attempt == retries - 1:  # Last attempt
                     logger.error(f"Error in Claude API request after {retries} attempts: {e}")
                     raise
                 else:
                     wait_time = (2 ** attempt) * 20  # Exponential backoff: 20, 40, 80, 160, 320 seconds
                     logger.warning(f"Attempt {attempt + 1} failed, retrying in {wait_time} seconds: {e}")
-                    time.sleep(wait_time)
+                    await asyncio.sleep(wait_time)
       
         # Extract the response content
         response_content = response.content[0].text
