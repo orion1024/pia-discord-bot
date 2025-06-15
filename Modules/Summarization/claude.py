@@ -85,6 +85,7 @@ Please provide:
         retries = 5
         for attempt in range(retries):
             try:
+                raise
                 response = client.messages.create(
                     model=summarization_config.model or "claude-3-sonnet-20240229",
                     max_tokens=1024,
@@ -97,7 +98,7 @@ Please provide:
                 break
             except Exception as e:
                 # Claude sends 529 errors when service is overloaded. We only retry those errors.
-                overload_error = "529" in str(e)
+                overload_error = "529" in str(e) or True
                 if overload_error and attempt == retries - 1:  # Last attempt
                     logger.error(f"Error in Claude API request after {retries} attempts: {e}")
                     raise
