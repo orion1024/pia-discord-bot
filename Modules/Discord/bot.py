@@ -762,6 +762,11 @@ class PiaBot(commands.Bot):
                         logger.warning(f"Could not extract content ID from URL: {url}")
                         continue
                     
+                    # Check if URL already discovered in this scan, it will be in unprocessed_urls
+                    if any(url["url"] == url for url in unprocessed_urls):
+                        logger.info(f"URL already discovered in this scan: {url}")
+                        continue
+
                     # Check if URL has already been processed
                     existing_thread = None
                     if hasattr(self, '_duplicate_checker'):
