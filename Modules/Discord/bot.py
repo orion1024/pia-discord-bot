@@ -763,7 +763,7 @@ class PiaBot(commands.Bot):
                         continue
                     
                     # Check if URL already discovered in this scan, it will be in unprocessed_urls
-                    if any(url["url"] == url for url in unprocessed_urls):
+                    if any(unprocessed_url["url"] == url for unprocessed_url in unprocessed_urls):
                         logger.info(f"URL already discovered in this scan: {url}")
                         continue
 
