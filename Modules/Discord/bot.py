@@ -654,7 +654,7 @@ class PiaBot(commands.Bot):
                 thread = message.thread
 
                 # List previous messages from the bot, for later removal if content fetching succeeds
-                previous_bot_messages = [message async for message in thread.history(limit=None) if message.author == self.user and not message.content == strings.DISCORD_THREAD_CREATED and not message.content == thread.name]
+                previous_bot_messages = [message async for message in thread.history(limit=None) if message.author == self.user and not message.content == strings.DISCORD_THREAD_CREATED and not message.content == thread.name and len(message.content) > 0]
                 logger.info(f"Bot messages in thread {thread.id} identified for future removal: {len(previous_bot_messages)}")
 
                 await thread.send(strings.CONTENT_FETCHING)
