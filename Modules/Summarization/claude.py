@@ -103,7 +103,7 @@ Please provide:
                     logger.error(f"Error in Claude API request after {retries} attempts: {e}")
                     raise
                 else:
-                    wait_time = (2 ** attempt) * 10  # Exponential backoff: 10, 20, 40, 80, 160 seconds
+                    wait_time = (2 ** attempt) * 1  # Exponential backoff: 10, 20, 40, 80, 160 seconds
                     logger.warning(f"Attempt {attempt + 1} failed, retrying in {wait_time} seconds: {e}")
                     time.sleep(wait_time)
       
