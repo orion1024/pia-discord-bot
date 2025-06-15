@@ -728,7 +728,7 @@ class PiaBot(commands.Bot):
             
         except Exception as e:
             logger.exception(f"Error processing URL {url}: {e}")
-            await thread.send(strings.DISCORD_ERROR_FETCHING.format(url=url, error=str(e)))
+            await thread.send(strings.DISCORD_ERROR_FETCHING.format(error=str(e)))
             # Re-raise the exception for the queue processor to handle
             raise
     async def _scan_channel_messages(self, channel, days_back: int) -> dict:
