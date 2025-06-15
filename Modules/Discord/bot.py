@@ -712,7 +712,7 @@ class PiaBot(commands.Bot):
             # Remove previous bot messages to clean up the thread
             if previous_bot_messages and len(previous_bot_messages) > 0:
                 for message in previous_bot_messages:
-                    shortened_content = message.content[:30]
+                    shortened_content = (message.content[:30] + "...") if len(message.content) > 30 else message.content
                     try:
                         await message.delete()
                         logger.info(f"Deleted previous bot message: {shortened_content}")
