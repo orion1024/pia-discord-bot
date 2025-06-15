@@ -81,34 +81,31 @@ Please provide:
         # Call Claude API
         logger.info(f"Sending request to Claude API for content: {sanitize_for_logging(title)}")
         
-        try:
-            retries = 5
-            for attempt in range(retries):
-                try:
-                    response = client.messages.create(
-                        model=summarization_config.model or "claude-3-sonnet-20240229",
-                        max_tokens=1024,
-                        temperature=0.3,
-                        system="You are a helpful AI assistant that summarizes content accurately and concisely. Always respond with a JSON object containing 'summary' and 'tags' fields.",
-                        messages=[
-                            {"role": "user", "content": prompt}
-                        ]
-                    )
-                    break
-                except Exception as e:
-                    # Claude sends 529 errors when service is overloaded. We only retry those errors.
-                    overload_error = "529" in str(e)
-                    if overload_error and attempt == retries - 1:  # Last attempt
-                        logger.error(f"Error in Claude API request after {retries} attempts: {e}")
-                        raise
-                    else:
-                        wait_time = (2 ** attempt) * 10  # Exponential backoff: 10, 20, 40, 80, 160 seconds
-                        logger.warning(f"Attempt {attempt + 1} failed, retrying in {wait_time} seconds: {e}")
-                        time.sleep(wait_time)
-
-        except Exception as e:
-            logger.error(f"Error in Claude API request: {e}")
-            raise        
+       
+        retries = 5
+        for attempt in range(retries):
+            try:
+                response = client.messages.create(
+                    model=summarization_config.model or "claude-3-sonnet-20240229",
+                    max_tokens=1024,
+                    temperature=0.3,
+                    system="You are a helpful AI assistant that summarizes content accurately and concisely. Always respond with a JSON object containing 'summary' and 'tags' fields.",
+                    messages=[
+                        {"role": "user", "content": prompt}
+                    ]
+                )
+                break
+            except Exception as e:
+                # Claude sends 529 errors when service is overloaded. We only retry those errors.
+                overload_error = "529" in str(e)
+                if overload_error and attempt == retries - 1:  # Last attempt
+                    logger.error(f"Error in Claude API request after {retries} attempts: {e}")
+                    raise
+                else:
+                    wait_time = (2 ** attempt) * 10  # Exponential backoff: 10, 20, 40, 80, 160 seconds
+                    logger.warning(f"Attempt {attempt + 1} failed, retrying in {wait_time} seconds: {e}")
+                    time.sleep(wait_time)
+      
         # Extract the response content
         response_content = response.content[0].text
         
