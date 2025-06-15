@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 _PLATFORM_NAME = "YouTube"
 
-def get_youtube_metadata(video_id: str, api_key) -> Dict[str, Any]:
+async def get_youtube_metadata(video_id: str, api_key) -> Dict[str, Any]:
     url = f"https://www.googleapis.com/youtube/v3/videos"
     params = {
         "part": "snippet,contentDetails,statistics",
@@ -24,8 +24,25 @@ def get_youtube_metadata(video_id: str, api_key) -> Dict[str, Any]:
         "key": api_key
     }
     
-    response = requests.get(url, params=params)
-    return response.json()
+    youtube_config = config.get_content().youtube
+    max_retries = youtube_config.transcript_max_retries if hasattr(youtube_config, 'transcript_max_retries') else 3
+    retry_delay = youtube_config.transcript_retry_delay if hasattr(youtube_config, 'transcript_retry_delay') else 2
+    
+    for attempt in range(max_retries):
+        try:
+            if youtube_config.proxy_enabled and youtube_config.proxy_urls:
+                # Randomly select one proxy from the list
+                selected_proxy = random.choice(youtube_config.proxy_urls)
+                logger.info(f"Proxy enabled, using proxy for YT metadata: {selected_proxy}")
+                response = requests.get(url, params=params, proxies=selected_proxy)
+            else:
+                response = requests.get(url, params=params)
+                
+            return response.json()
+        except Exception as e:
+            if attempt == max_retries - 1:
+                raise
+            await asyncio.sleep(retry_delay * (attempt + 1))
 
 def extract_video_id(url: str) -> Optional[str]:
     """

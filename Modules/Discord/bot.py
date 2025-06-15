@@ -623,7 +623,6 @@ class PiaBot(commands.Bot):
         Args:
             url: The URL to process
             message: The original message
-            is_from_queue: Whether this URL is being processed from the queue
         """
         # Check if the URL is supported
         if not await self._is_supported_url(url):
