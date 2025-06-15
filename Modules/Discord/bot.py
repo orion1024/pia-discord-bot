@@ -738,10 +738,9 @@ class PiaBot(commands.Bot):
         
         # Fetch messages from the channel
         async for message in channel.history(limit=None, after=cutoff_time):
-            # Skip messages from the bot itself
-            if message.author == self.user:
-                continue
-            
+            # Skip messages from any bot
+            if message.author.bot:
+                continue            
             # Skip messages in threads - we only want messages directly in the channel
             # Messages that start threads will be in the channel, not in the thread itself
             if hasattr(message, 'channel') and isinstance(message.channel, discord.Thread):

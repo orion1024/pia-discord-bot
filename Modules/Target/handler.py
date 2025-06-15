@@ -121,7 +121,7 @@ async def send_to_discord(url: str, summary: str, context: Dict[str, Any], summa
         
             # Send each chunk
             for chunk in chunks:
-                await thread.send(chunk)        
+                await thread.send(chunk)
         # await thread.send(summary)
         
     except Exception as e:
