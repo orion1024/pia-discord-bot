@@ -655,7 +655,7 @@ class PiaBot(commands.Bot):
 
                 # List previous messages from the bot, for later removal if content fetching succeeds
                 previous_bot_messages = [message async for message in thread.history(limit=None) if message.author == self.user and not message.content == strings.DISCORD_THREAD_CREATED]                
-                logger.info(f"Bot messages in thread {thread.id} identified for future removal: {previous_bot_messages}")
+                logger.info(f"Bot messages in thread {thread.id} identified for future removal: {len(previous_bot_messages)}")
 
                 await thread.send(strings.CONTENT_FETCHING)
                 #  If existing thread, if the name is still the default one, it needs to be renamed
@@ -712,15 +712,16 @@ class PiaBot(commands.Bot):
             # Remove previous bot messages to clean up the thread
             if previous_bot_messages and len(previous_bot_messages) > 0:
                 for message in previous_bot_messages:
+                    shortened_content = message.content[:30]
                     try:
                         await message.delete()
-                        logger.info(f"Deleted previous bot message: {message.content}")
+                        logger.info(f"Deleted previous bot message: {shortened_content}")
                     except discord.NotFound:
-                     logger.warning(f"Previous bot message not found: {message.content}")
+                     logger.warning(f"Previous bot message not found: {shortened_content}")
                     except discord.Forbidden:
-                        logger.error(f"Failed to delete previous bot message: {message.content}")
+                        logger.error(f"Failed to delete previous bot message: {shortened_content}")
                     except Exception as e:
-                        logger.error(f"Error deleting previous bot message: {message.content}, {e}")
+                        logger.error(f"Error deleting previous bot message: {shortened_content}, {e}")
             
 
             return summary
