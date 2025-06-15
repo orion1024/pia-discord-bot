@@ -37,7 +37,7 @@ async def get_youtube_metadata(video_id: str, api_key) -> Dict[str, Any]:
                 response = requests.get(url, params=params, proxies=selected_proxy)
             else:
                 response = requests.get(url, params=params)
-                
+
             return response.json()
         except Exception as e:
             if attempt == max_retries - 1:
@@ -101,7 +101,7 @@ async def process_youtube(url: str) -> Optional[ContentItem]:
             raise ValueError("YouTube API key not found in configuration")
         
         # Get metadata using YouTube Data API
-        metadata = get_youtube_metadata(youtube_video_id, api_key)
+        metadata = await get_youtube_metadata(youtube_video_id, api_key)
         
         if not metadata or 'items' not in metadata or not metadata['items']:
             raise ValueError(f"Could not fetch metadata for video ID: {youtube_video_id}")
