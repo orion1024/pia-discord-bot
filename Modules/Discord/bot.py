@@ -228,7 +228,6 @@ class PiaBot(commands.Bot):
                     
                         # Process the URL
                         new_content = f"Processing URL {i+1}/{len(urls_to_process)}: {url}\n"
-                        # TODO : check limit on message length (2000 chars)
                         if (len(new_content) + len(feedback_content)) < 2000:
                             feedback_content += new_content
                             await feedback_message.edit(content=feedback_content, suppress=True)
@@ -653,6 +652,11 @@ class PiaBot(commands.Bot):
             existing_thread = hasattr(message, 'thread') and message.thread
             if existing_thread:
                 thread = message.thread
+
+                # List previous messages from the bot, for later removal if content fetching succeeds
+                previous_bot_messages = [message async for message in thread.history(limit=None) if message.author == self.user and not message.content == strings.DISCORD_THREAD_CREATED]                
+                logger.info(f"Bot messages in thread {thread.id} identified for future removal: {previous_bot_messages}")
+
                 await thread.send(strings.CONTENT_FETCHING)
                 #  If existing thread, if the name is still the default one, it needs to be renamed
                 default_thread_name = self._generate_default_thread_name(url)
@@ -704,6 +708,20 @@ class PiaBot(commands.Bot):
                 raise RuntimeError("Target handler not configured")
                 
             await self._target_handler(url, formatted_summary, thread, summary)
+
+            # Remove previous bot messages to clean up the thread
+            if previous_bot_messages and len(previous_bot_messages) > 0:
+                for message in previous_bot_messages:
+                    try:
+                        await message.delete()
+                        logger.info(f"Deleted previous bot message: {message.content}")
+                    except discord.NotFound:
+                     logger.warning(f"Previous bot message not found: {message.content}")
+                    except discord.Forbidden:
+                        logger.error(f"Failed to delete previous bot message: {message.content}")
+                    except Exception as e:
+                        logger.error(f"Error deleting previous bot message: {message.content}, {e}")
+            
 
             return summary
             
