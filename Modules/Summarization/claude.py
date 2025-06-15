@@ -31,7 +31,7 @@ async def summarize_with_claude(content_item: ContentItem, tag_info: Optional[Di
         
        
         # Create Claude client
-        client = anthropic.Anthropic(
+        client = anthropic.AsyncAnthropic(
             api_key=summarization_config.api_key,
         )
         
@@ -86,7 +86,7 @@ Please provide:
         response = None
         for attempt in range(retries):
             try:
-                response = client.messages.create(
+                response = await client.messages.create(
                     model=summarization_config.model or "claude-3-sonnet-20240229",
                     max_tokens=1024,
                     temperature=0.3,
