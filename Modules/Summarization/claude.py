@@ -31,7 +31,7 @@ async def summarize_with_claude(content_item: ContentItem, tag_info: Optional[Di
         
        
         # Create Claude client
-        client = anthropic.Anthropic(
+        client = anthropic.AsyncAnthropic(
             api_key=summarization_config.api_key,
         )
         
@@ -86,7 +86,7 @@ Please provide:
         response = None
         for attempt in range(retries):
             try:
-                response = client.messages.create(
+                response = await client.messages.create(
                     model=summarization_config.model or "claude-3-sonnet-20240229",
                     max_tokens=1024,
                     temperature=0.3,
@@ -97,13 +97,14 @@ Please provide:
                 )
                 break
             except Exception as e:
-                # Claude sends 529 errors when service is overloaded. We only retry those errors.
-                overload_error = "529" in str(e)
+                # Claude sends 529 errors when service is overloaded, or 429 when the rate limit is reached.
+                # We only retry those errors.
+                overload_error = "529" in str(e) or "429" in str(e)
                 if not overload_error or attempt == retries - 1:  # Last attempt
                     logger.error(f"Error in Claude API request after {retries} attempts: {e}")
                     raise
                 else:
-                    wait_time = (2 ** attempt) * 20  # Exponential backoff: 20, 40, 80, 160, 320 seconds
+                    wait_time = 40 + (2 ** attempt) * 20  # Exponential backoff
                     logger.warning(f"Attempt {attempt + 1} failed, retrying in {wait_time} seconds: {e}")
                     await asyncio.sleep(wait_time)
       
