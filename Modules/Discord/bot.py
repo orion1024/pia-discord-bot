@@ -717,11 +717,11 @@ class PiaBot(commands.Bot):
                         await message.delete()
                         logger.info(f"Deleted previous bot message: {shortened_content}")
                     except discord.NotFound:
-                     logger.warning(f"Previous bot message not found: {shortened_content}")
+                     logger.warning(f"Previous bot message not found (ID : {message.id}): {shortened_content}")
                     except discord.Forbidden:
-                        logger.error(f"Forbidden to delete previous bot message: {shortened_content}")
+                        logger.error(f"Forbidden to delete previous bot message (ID : {message.id}): {shortened_content}")
                     except Exception as e:
-                        logger.error(f"Error deleting previous bot message: {shortened_content}, {e}")
+                        logger.error(f"Error deleting previous bot message (ID : {message.id}): {shortened_content}, {e}")
             
 
             return summary
