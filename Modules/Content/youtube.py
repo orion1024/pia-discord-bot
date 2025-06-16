@@ -34,7 +34,11 @@ async def get_youtube_metadata(video_id: str, api_key) -> Dict[str, Any]:
                 # Randomly select one proxy from the list
                 selected_proxy = random.choice(youtube_config.proxy_urls)
                 logger.info(f"Proxy enabled, using proxy for YT metadata: {selected_proxy}")
-                response = requests.get(url, params=params, proxies=selected_proxy)
+                proxies = {
+                    'http': selected_proxy,
+                    'https': selected_proxy,
+                }
+                response = requests.get(url, params=params, proxies=proxies)
             else:
                 response = requests.get(url, params=params)
 
