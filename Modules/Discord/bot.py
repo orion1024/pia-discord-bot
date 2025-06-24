@@ -350,6 +350,51 @@ class PiaBot(commands.Bot):
                 logger.exception(f"Error searching summaries by tag: {e}")
                 await ctx.send(f"Erreur pendant la recherche: {str(e)}")
 
+        @self.command(name="stats", help="Scan channel messages for links and store statistics on them [Admin only]")
+        async def scan_for_stats(ctx, channel_id: int, days_back: int):
+            """Scan channel messages for the specified number of days back."""
+            if not await self._check_moderator_permissions(ctx):
+                await ctx.message.reply("You don't have permission to use this command.")
+                return
+            
+            channel_id_list = []
+            for channel_id in self.monitored_channel_ids:
+                channel = self.get_channel(channel_id)
+                if channel:
+                    channel_id_list.append(channel.id)
+            
+            
+            if days_back <= 0:
+                await ctx.message.reply("Please provide a positive number of days to scan.")
+                return
+            
+            if channel_id_list:
+                await ctx.send(f"Will scan {len(channel_id_list)} channels for messages from the last {days_back} days.")
+            else:
+                await ctx.send("I'm not monitoring any channels.")
+                return
+            
+            for channel_id in channel_id_list:
+                channel = self.get_channel(channel_id)
+                if channel:
+                    await ctx.message.reply(f"Starting to scan messages from the last {days_back} days in channel {channel.name} (ID: {channel.id})...")
+                    # Call the placeholder method that will handle the scanning logic
+                    scan_results = await self._scan_channel_for_stats(channel, days_back)
+
+                    # Reply with results.
+                    # Result contains a breakdown by domain name, organized into the following categories:
+                    # - already processed
+                    # - supported but not processed
+                    # - unsupported 
+                    # - totals
+                    # and also the total number of messages scanned
+                    await ctx.message.reply(f"Scan complete! Messages scanned: {scan_results['scanned']}, "
+                          f"Already processed:\n {scan_results['processed']}, "
+                          f"Supported:\n {scan_results['supported']}"
+                          f"Unsupported:\n {scan_results['unsupported']}")
+        
+            
+        
         logger.info("Commands registered successfully")
     
     def set_content_id_extractor(self, extractor: Callable[[str], Awaitable[Optional[str]]]) -> None:
@@ -731,6 +776,8 @@ class PiaBot(commands.Bot):
             await thread.send(strings.DISCORD_ERROR_FETCHING.format(error=str(e)))
             # Re-raise the exception for the queue processor to handle
             raise
+
+
     async def _scan_channel_messages(self, channel, days_back: int) -> dict:
         """
         Scan messages in a channel for supported links.
@@ -869,6 +916,91 @@ class PiaBot(commands.Bot):
             "scanned": scanned,
             "processed": already_processed,
             "not_processed": not_processed
+        }
+
+
+    async def _scan_channel_for_stats(self, channel, days_back) -> dict:
+        """
+        Scan the specified channel for messages from the last N days.
+        
+        Args:
+            channel: The channel to scan
+            days_back: The number of days to scan back
+        
+        Returns:
+            A dictionary containing the following statistics:
+            - scanned: The total number of messages scanned
+            Breakdown by domain names of number links for the following categories
+            - processed : Links supported and processed.
+            - supported: Links supported but not processed.
+            - unsupported: Links not supported.
+        """
+
+        # Calculate the cutoff time
+        cutoff_time = discord.utils.utcnow() - datetime.timedelta(days=days_back)
+        
+        # Initialize counters
+        scanned = 0
+        already_processed = 0
+        not_processed = 0
+        
+        # Initialize list to store unprocessed URLs
+        discovered_urls = []
+        
+        # Fetch messages from the channel
+        async for message in channel.history(limit=None, after=cutoff_time):
+            # Skip messages from any bot
+            if message.author.bot:
+                continue            
+           
+            scanned += 1
+            
+            # Extract URLs from the message content
+            urls = await self._extract_urls(message.content)
+            
+            # Check if any of the URLs are supported
+            for url in urls:
+                # Check if URL already discovered in this scan, if yes we skip it
+                if any(discovered_url == url for discovered_url in discovered_urls):
+                    logger.info(f"URL already discovered in this scan: {url}")
+                    continue
+                discovered_urls.append(url)
+                
+                if await self._is_supported_url(url):
+                    logger.info(f"Found supported URL: {url} in message {message.id}")
+                    
+                    # Extract content ID
+                    content_id = await self._content_id_extractor(url)
+                    if not content_id:
+                        logger.warning(f"Could not extract content ID from URL: {url}")
+                        continue
+                    
+                    # Check if URL has already been processed
+                    existing_thread = None
+                    if hasattr(self, '_duplicate_checker'):
+                        existing_summary = await self._duplicate_checker(content_id)
+                        if existing_summary and existing_summary.thread_url:
+                            try:
+                                thread_id = int(existing_summary.thread_url.split('/')[-1])
+                                existing_thread = self.get_channel(thread_id)
+                            except (ValueError, IndexError):
+                                logger.warning(f"Invalid thread URL in cache: {existing_summary.thread_url}")
+                    
+                    if existing_thread:
+                        logger.info(f"URL already processed: {url}, thread: {existing_thread.id}")
+                        already_processed += 1
+                        # TODO
+                    else:
+                        logger.info(f"URL not yet processed: {url}")
+                        not_processed += 1
+                        # TODO
+
+        # Placeholder implementation
+        return {
+            "scanned": 0,
+            "processed": "",
+            "supported": "",
+            "unsupported": ""
         }
 
     async def _check_moderator_permissions(self, ctx) -> bool:
